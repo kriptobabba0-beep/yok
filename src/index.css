@@ -1,0 +1,141 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    background-color: #0a0b0f;
+    color: #e2e8f0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0f1117;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #2a2d42;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #3a3d52;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-surface-2/70 backdrop-blur-xl border border-white/[0.06] rounded-2xl;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.04);
+  }
+
+  .glass-card-hover {
+    @apply glass-card transition-all duration-300;
+  }
+  .glass-card-hover:hover {
+    @apply border-brand-500/20 bg-surface-3/70;
+    box-shadow: 0 8px 32px rgba(99,102,241,0.08), inset 0 1px 0 rgba(255,255,255,0.06);
+    transform: translateY(-1px);
+  }
+
+  .glow-dot {
+    @apply w-2 h-2 rounded-full bg-accent-green;
+    box-shadow: 0 0 8px rgba(16,185,129,0.6);
+  }
+
+  .glow-dot-red {
+    @apply w-2 h-2 rounded-full bg-accent-red;
+    box-shadow: 0 0 8px rgba(239,68,68,0.6);
+  }
+
+  .glow-dot-amber {
+    @apply w-2 h-2 rounded-full bg-accent-amber;
+    box-shadow: 0 0 8px rgba(245,158,11,0.6);
+  }
+
+  .btn-primary {
+    @apply px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white text-sm font-medium rounded-xl transition-all duration-200;
+    box-shadow: 0 2px 12px rgba(99,102,241,0.3);
+  }
+  .btn-primary:hover {
+    box-shadow: 0 4px 20px rgba(99,102,241,0.5);
+    transform: translateY(-1px);
+  }
+
+  .btn-ghost {
+    @apply px-4 py-2 bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 text-sm font-medium rounded-xl border border-white/[0.06] transition-all duration-200;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 text-xs font-medium rounded-full;
+  }
+  .badge-green {
+    @apply badge bg-emerald-500/15 text-emerald-400 border border-emerald-500/20;
+  }
+  .badge-red {
+    @apply badge bg-red-500/15 text-red-400 border border-red-500/20;
+  }
+  .badge-amber {
+    @apply badge bg-amber-500/15 text-amber-400 border border-amber-500/20;
+  }
+  .badge-brand {
+    @apply badge bg-brand-500/15 text-brand-300 border border-brand-500/20;
+  }
+  .badge-cyan {
+    @apply badge bg-cyan-500/15 text-cyan-400 border border-cyan-500/20;
+  }
+
+  .input-field {
+    @apply w-full bg-surface-1 border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 outline-none transition-all duration-200;
+  }
+  .input-field:focus {
+    @apply border-brand-500/40 ring-2 ring-brand-500/10;
+  }
+
+  .tab-active {
+    @apply text-brand-400 border-b-2 border-brand-400;
+  }
+  .tab-inactive {
+    @apply text-slate-500 hover:text-slate-300 border-b-2 border-transparent;
+  }
+
+  .shimmer {
+    background: linear-gradient(90deg, #151721 25%, #1b1e2b 50%, #151721 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  .live-pulse::before {
+    content: '';
+    @apply absolute w-full h-full rounded-full bg-accent-green/30;
+    animation: livePulse 1.5s ease-out infinite;
+  }
+
+  @keyframes livePulse {
+    0% { transform: scale(1); opacity: 0.6; }
+    100% { transform: scale(2.5); opacity: 0; }
+  }
+
+  .noise-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.015;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+}
