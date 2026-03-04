@@ -33,6 +33,12 @@ export default function TopEarners() {
   }, [timePeriod, orderBy]);
 
   const windowLabel = TIME_TABS.find(t => t.value === timePeriod)?.label || '';
+  const windowDescription = {
+    DAY: 'Rankings based on the last 24 hours',
+    WEEK: 'Rankings based on the last 7 days',
+    MONTH: 'Rankings based on the last 30 days',
+    ALL: 'Rankings since Polymarket launched (cumulative all-time data)',
+  }[timePeriod] || '';
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -46,6 +52,9 @@ export default function TopEarners() {
       </PageHeader>
 
       <TabBar tabs={TIME_TABS} active={timePeriod} onChange={setTimePeriod} />
+
+      {/* Time period explanation */}
+      <p className="text-xs text-slate-500 -mt-3">{windowDescription}</p>
 
       {loading ? <TableSkeleton rows={10}/> :
        data.length === 0 ? <EmptyState icon={Trophy} title="No data available" description="Leaderboard data could not be loaded. Try again later."/> : (

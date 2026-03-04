@@ -232,8 +232,10 @@ export default function Snipers() {
 
                 {/* Trades */}
                 <div className="p-5 space-y-2">
-                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Open Positions</p>
-                  {s.trades.filter(t => t.side === 'BUY').slice(0, 5).map((t, j) => {
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Recent Trades</p>
+                  {s.trades.length === 0 ? (
+                    <p className="text-xs text-slate-600 italic">No trade details available</p>
+                  ) : s.trades.slice(0, 5).map((t, j) => {
                     const amt = Number(t.size || 0) * Number(t.price || 0);
                     return (
                       <div key={`${t.transactionHash || j}-${j}`} className="flex items-center gap-3 p-3 rounded-xl bg-surface-1/50 hover:bg-surface-1 transition-all">

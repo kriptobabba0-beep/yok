@@ -6,9 +6,10 @@ import { TrendingUp, Clock, ExternalLink, Filter, Search, Timer, Flame, ArrowUpR
 
 const TIME_FILTERS = [
   { value: 'all', label: 'All' },
+  { value: 'ending_today', label: 'Ending Today' },
+  { value: 'ending_this_week', label: 'Ending This Week' },
+  { value: 'long_term', label: 'Long Term' },
   { value: 'starting_soon', label: 'Starting Soon' },
-  { value: 'today', label: 'Today' },
-  { value: 'this_week', label: 'This Week' },
 ];
 
 export default function TrendingMarkets() {
@@ -190,14 +191,19 @@ export default function TrendingMarkets() {
     if (timeFilter === 'starting_soon') {
       result = result.filter(e => e.minutesUntilStart !== null && e.minutesUntilStart <= 120 && e.minutesUntilStart > 0);
       result.sort((a, b) => (a.minutesUntilStart || Infinity) - (b.minutesUntilStart || Infinity));
-    } else if (timeFilter === 'today') {
+    } else if (timeFilter === 'ending_today') {
       const endOfDay = new Date();
       endOfDay.setHours(23, 59, 59, 999);
       result = result.filter(e => e.endTime && e.endTime <= endOfDay.getTime());
-    } else if (timeFilter === 'this_week') {
+    } else if (timeFilter === 'ending_this_week') {
       const endOfWeek = new Date();
       endOfWeek.setDate(endOfWeek.getDate() + 7);
       result = result.filter(e => e.endTime && e.endTime <= endOfWeek.getTime());
+    } else if (timeFilter === 'long_term') {
+      const endOfWeek = new Date();
+      endOfWeek.setDate(endOfWeek.getDate() + 7);
+      // Markets with no end date OR ending beyond 7 days
+      result = result.filter(e => !e.endTime || e.endTime > endOfWeek.getTime());
     }
 
     // Search

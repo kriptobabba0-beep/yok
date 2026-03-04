@@ -28,7 +28,7 @@ export default function Dashboard() {
 
       const totalVol = evtData.reduce((sum, e) => sum + Number(e.volume24hr || 0), 0);
       const topProfit = lbData[0]?.pnl || 0;
-      setStats({ totalVol, activeMarkets: evtData.length, topProfit });
+      setStats({ totalVol, topProfit });
       setLoading(false);
     }
     load();
@@ -43,7 +43,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {loading ? <><CardSkeleton/><CardSkeleton/><CardSkeleton/><CardSkeleton/></> : <>
           <StatCard label="24h Volume (Top 8)" value={formatUSD(stats.totalVol)} icon={DollarSign} color="green" />
-          <StatCard label="Hot Markets" value={events.length} icon={BarChart3} color="brand" />
+          <StatCard label="Top Trending Shown" value={`${events.length} markets`} icon={BarChart3} color="brand" />
           <StatCard label="Top Daily Profit" value={formatUSD(stats.topProfit)} icon={Trophy} color="amber" />
           <div className="glass-card p-5 flex items-center gap-3">
             <div className="relative"><div className="glow-dot"/><div className="live-pulse absolute inset-0"/></div>

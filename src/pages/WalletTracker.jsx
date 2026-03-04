@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../utils/store';
 import { fetchProfile, fetchPositions, formatUSD, shortenAddress, polymarketProfileUrl, timeAgo } from '../utils/api';
 import { PageHeader, EmptyState, CopyButton, StatCard } from '../components/UI';
-import { Bookmark, Plus, Trash2, ExternalLink, Wallet, Eye, ArrowRight, Bell, Users, ArrowUpRight, ArrowDownLeft, CheckCheck, X } from 'lucide-react';
+import { Bookmark, Plus, Trash2, ExternalLink, Wallet, Eye, ArrowRight, Bell, Users, ArrowUpRight, ArrowDownLeft, CheckCheck, X, Star } from 'lucide-react';
 
 export default function WalletTracker() {
   const navigate = useNavigate();
@@ -92,12 +92,12 @@ export default function WalletTracker() {
                         ) : null}
                       </div>
                       <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <a href={polymarketProfileUrl(fav.address)} target="_blank" rel="noopener noreferrer" className="p-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-500 hover:text-brand-400 transition-all" title="View on Polymarket" onClick={e => e.stopPropagation()}><ExternalLink size={14}/></a>
                         <button onClick={e => { e.stopPropagation(); removeFavorite(fav.address); }}
-                          className="p-2 rounded-xl bg-white/[0.04] hover:bg-red-500/15 text-slate-500 hover:text-red-400 transition-all"
-                          title="Remove from favorites">
-                          <Trash2 size={14}/>
+                          className="p-2 rounded-xl bg-amber-500/10 hover:bg-red-500/15 text-amber-400 hover:text-red-400 transition-all"
+                          title="Remove from tracking">
+                          <Star size={16} fill="currentColor"/>
                         </button>
+                        <a href={polymarketProfileUrl(fav.address)} target="_blank" rel="noopener noreferrer" className="p-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-500 hover:text-brand-400 transition-all" title="View on Polymarket" onClick={e => e.stopPropagation()}><ExternalLink size={14}/></a>
                         <ArrowRight size={14} className="text-slate-600 ml-1"/>
                       </div>
                     </div>
