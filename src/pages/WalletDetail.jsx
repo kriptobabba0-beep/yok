@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { fetchProfile, fetchPositions, fetchActivity, fetchTrades, formatUSD, shortenAddress, polymarketProfileUrl, polymarketMarketUrl, timeAgo } from '../utils/api';
 import { PageHeader, TabBar, TableSkeleton, FavoriteButton, CopyButton, ExtLink, EmptyState, ProbBar, StatCard, CardSkeleton } from '../components/UI';
+import { generateBadges, BadgeList } from '../utils/badges';
 import { Wallet, ArrowUpRight, ArrowDownLeft, ExternalLink, Activity, BarChart3, FileText, DollarSign } from 'lucide-react';
 
 const TABS = [
@@ -71,6 +72,17 @@ export default function WalletDetail() {
         <StatCard label="Unrealized P&L" value={formatUSD(totalPnl)} icon={Activity} color={totalPnl >= 0 ? 'green' : 'red'}/>
       </div>}
 
+      {/* Badges */}
+      {!loading && (() => {
+        const badges = generateBadges({ pnl: totalPnl, positions: positions.length });
+        return badges.length > 0 ? (
+          <div className="glass-card p-4">
+            <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-2">Achievements</p>
+            <BadgeList badges={badges} size="sm" />
+          </div>
+        ) : null;
+      })()}
+
       <TabBar tabs={TABS} active={tab} onChange={setTab}/>
 
       {/* Positions */}
@@ -81,7 +93,7 @@ export default function WalletDetail() {
           return (
             <div key={i} className="glass-card-hover p-4">
               <div className="flex items-start gap-3">
-                {pos.icon && <img src={pos.icon} alt="" className="w-10 h-10 rounded-xl object-cover flex-shrink-0 bg-surface-4"/>}
+                {pos.icon && <img src={pos.icon} alt="" className="w-10 h-10 rounded-md object-cover flex-shrink-0 bg-surface-4"/>}
                 <div className="flex-1 min-w-0">
                   <h3 className="text-sm font-medium text-slate-200 line-clamp-2">{pos.title || 'Unknown'}</h3>
                   <div className="flex flex-wrap items-center gap-3 mt-2 text-xs">
@@ -128,7 +140,7 @@ export default function WalletDetail() {
         activity.length === 0 ? <EmptyState icon={Activity} title="No activity" description="No on-chain activity found."/> :
         <div className="space-y-2">{activity.slice(0, 100).map((a, i) => (
           <div key={i} className="glass-card p-4 flex items-center gap-3">
-            <div className={`p-2 rounded-xl flex-shrink-0 ${a.type === 'TRADE' ? (a.side === 'BUY' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400') : a.type === 'REDEEM' ? 'bg-amber-500/15 text-amber-400' : 'bg-brand-500/15 text-brand-400'}`}>
+            <div className={`p-2 rounded-md flex-shrink-0 ${a.type === 'TRADE' ? (a.side === 'BUY' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400') : a.type === 'REDEEM' ? 'bg-amber-500/15 text-amber-400' : 'bg-brand-500/15 text-brand-400'}`}>
               {a.type === 'TRADE' ? (a.side === 'BUY' ? <ArrowUpRight size={14}/> : <ArrowDownLeft size={14}/>) : <Activity size={14}/>}
             </div>
             <div className="flex-1 min-w-0">

@@ -3,17 +3,18 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useApp } from '../utils/store';
 import {
   LayoutDashboard, TrendingUp, Crosshair, Zap, Trophy,
-  Bookmark, Bell, Search, X, ExternalLink, Menu
+  Bookmark, Bell, Search, X, ExternalLink, Menu, Award
 } from 'lucide-react';
 import NotificationPanel from './NotificationPanel';
 
 const NAV_ITEMS = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/top-earners', icon: Trophy, label: 'Top Earners' },
-  { to: '/high-stakes', icon: Zap, label: 'High Stakes' },
+  { to: '/high-stakes', icon: Zap, label: 'Hot Trades' },
   { to: '/snipers', icon: Crosshair, label: 'Snipers' },
-  { to: '/trending', icon: TrendingUp, label: 'Trending Markets' },
-  { to: '/tracker', icon: Bookmark, label: 'Wallet Tracker' },
+  { to: '/trending', icon: TrendingUp, label: 'Trending' },
+  { to: '/leaders', icon: Award, label: 'Categories & Leaders' },
+  { to: '/tracker', icon: Bookmark, label: 'Tracker' },
 ];
 
 export default function Layout() {

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchGlobalTrades, formatUSD, shortenAddress, polymarketProfileUrl, polymarketMarketUrl, timeAgo } from '../utils/api';
 import { PageHeader, TableSkeleton, FavoriteButton, EmptyState } from '../components/UI';
+import { generateBadges, BadgeList } from '../utils/badges';
 import { Zap, ArrowUpRight, ArrowDownLeft, ExternalLink, RefreshCw, Filter, User } from 'lucide-react';
 
 const MIN_STAKE_OPTIONS = [
@@ -44,7 +45,7 @@ export default function HighStakes() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <PageHeader title="High Stakes Live" subtitle="Real-time feed of high-value open positions on Polymarket"
+      <PageHeader title="Hot Trades Live 🔥" subtitle="Real-time feed of high-value open positions on Polymarket"
         icon={Zap}
         badge={<span className="badge bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
           <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"/><span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"/></span> LIVE
@@ -110,8 +111,8 @@ export default function HighStakes() {
                 </div>
 
                 {/* Row 2: Trade description — clear readable sentence, LARGER */}
-                <div className="flex items-center gap-3 mb-4 flex-wrap">
-                  <div className="p-2 rounded-xl bg-emerald-500/15 flex-shrink-0">
+                <div className="flex items-center gap-3 mb-3 flex-wrap">
+                  <div className="p-2 rounded-md bg-emerald-500/15 flex-shrink-0">
                     <ArrowUpRight size={18} className="text-emerald-400"/>
                   </div>
                   <p className="text-base text-slate-200 leading-relaxed">
@@ -133,6 +134,12 @@ export default function HighStakes() {
                     <span className="text-slate-500">at {pricePct}¢ each</span>
                   </p>
                 </div>
+
+                {/* Badges */}
+                {(() => {
+                  const b = generateBadges({ vol: amount });
+                  return b.length > 0 ? <div className="mb-3"><BadgeList badges={b} size="sm"/></div> : null;
+                })()}
 
                 {/* Row 3: Footer metadata */}
                 <div className="flex items-center justify-between pt-3 border-t border-white/[0.04]">

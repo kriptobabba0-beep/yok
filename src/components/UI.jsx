@@ -4,7 +4,7 @@ import { useApp } from '../utils/store';
 
 // Loading skeleton
 export function Skeleton({ className = '' }) {
-  return <div className={`shimmer rounded-xl ${className}`} />;
+  return <div className={`shimmer rounded-md ${className}`} />;
 }
 
 export function CardSkeleton() {
@@ -50,7 +50,7 @@ export function StatCard({ label, value, change, icon: Icon, color = 'brand' }) 
           )}
         </div>
         {Icon && (
-          <div className={`p-2.5 rounded-xl bg-gradient-to-br ${colorMap[color]}`}>
+          <div className={`p-2.5 rounded-md bg-gradient-to-br ${colorMap[color]}`}>
             <Icon size={18} />
           </div>
         )}
@@ -135,7 +135,7 @@ export function EmptyState({ icon: Icon, title, description, action }) {
 // Tab bar
 export function TabBar({ tabs, active, onChange }) {
   return (
-    <div className="flex gap-1 bg-surface-2/50 rounded-xl p-1 border border-white/[0.04]">
+    <div className="flex gap-1 bg-surface-2/50 rounded-md p-1 border border-white/[0.04]">
       {tabs.map((tab) => (
         <button
           key={tab.value}

@@ -9,6 +9,7 @@ import HighStakes from './pages/HighStakes';
 import Snipers from './pages/Snipers';
 import TrendingMarkets from './pages/TrendingMarkets';
 import WalletTracker from './pages/WalletTracker';
+import MarketLeaders from './pages/MarketLeaders';
 
 export default function App() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
           <Route path="/snipers" element={<Snipers />} />
           <Route path="/trending" element={<TrendingMarkets />} />
           <Route path="/tracker" element={<WalletTracker />} />
+          <Route path="/leaders" element={<MarketLeaders />} />
         </Route>
       </Routes>
     </AppProvider>

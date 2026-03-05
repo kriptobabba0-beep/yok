@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell } from 'recharts';
 import { fetchEvents, fetchLeaderboard, formatUSD, shortenAddress, polymarketMarketUrl } from '../utils/api';
-import { StatCard, CardSkeleton, ProbBar, PageHeader } from '../components/UI';
-import { TrendingUp, DollarSign, BarChart3, Zap, Trophy, ArrowRight, ExternalLink, LayoutDashboard } from 'lucide-react';
+import { StatCard, CardSkeleton, PageHeader } from '../components/UI';
+import { generateBadges, BadgeList } from '../utils/badges';
+import { TrendingUp, DollarSign, BarChart3, Zap, Trophy, ArrowRight, ExternalLink, LayoutDashboard, ArrowUpRight } from 'lucide-react';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -64,59 +66,64 @@ export default function Dashboard() {
               {events.slice(0, 6).map((evt, i) => {
                 const markets = evt.markets || [];
                 const m = markets[0] || {};
-                
-                // Build the best outcome display for this event
-                let displayOutcomes = [];
-                
+                const slug = evt.slug || m.eventSlug;
+                const COLORS = ['#6366f1','#10b981','#f59e0b','#ec4899','#06b6d4','#ef4444','#8b5cf6','#f97316'];
+
+                // Build chart data
+                let chartData = [];
                 if (markets.length > 1) {
-                  // MULTI-MARKET EVENT (e.g., "2026 NBA Champion" with one market per team)
-                  // Each market is a team/option — find the top ones by Yes price
-                  const ranked = markets.map(mk => {
-                    let p = [];
-                    try { p = JSON.parse(mk.outcomePrices || '[]'); } catch {}
-                    const yesPrice = Number(p[0] || 0); // first outcome is Yes for that option
-                    return { label: mk.groupItemTitle || mk.question || '?', value: yesPrice };
-                  }).filter(o => o.value > 0).sort((a, b) => b.value - a.value);
-                  displayOutcomes = ranked.slice(0, 3);
+                  chartData = markets.map((mk, idx) => {
+                    let p = []; try { p = JSON.parse(mk.outcomePrices || '[]'); } catch {}
+                    return { name: mk.groupItemTitle || mk.question || '?', value: Number(p[0] || 0), pct: Math.round(Number(p[0] || 0) * 100), fill: COLORS[idx % COLORS.length] };
+                  }).filter(o => o.value > 0).sort((a, b) => b.value - a.value).slice(0, 5);
                 } else {
-                  // SINGLE MARKET EVENT (binary Yes/No or small set of outcomes)
                   let outcomes = [], prices = [];
                   try { outcomes = JSON.parse(m.outcomes || '[]'); } catch {}
                   try { prices = JSON.parse(m.outcomePrices || '[]'); } catch {}
-                  
-                  if (outcomes.length === 2 && outcomes.includes('Yes')) {
-                    // Binary Yes/No
-                    const yesIdx = outcomes.indexOf('Yes');
-                    displayOutcomes = [{ label: 'Yes', value: Number(prices[yesIdx] || 0) }];
-                  } else if (outcomes.length > 0 && prices.length > 0) {
-                    // Named outcomes — show top 2
-                    const paired = outcomes.map((o, idx) => ({ label: o, value: Number(prices[idx] || 0) }));
-                    paired.sort((a, b) => b.value - a.value);
-                    displayOutcomes = paired.slice(0, 2);
-                  }
+                  chartData = outcomes.map((o, idx) => ({ name: o, value: Number(prices[idx] || 0), pct: Math.round(Number(prices[idx] || 0) * 100), fill: COLORS[idx % COLORS.length] }));
                 }
 
                 return (
-                  <div key={evt.id || i} className="glass-card-hover p-4 cursor-pointer"
-                    onClick={() => { const s = evt.slug || m.eventSlug; if (s) window.open(polymarketMarketUrl(s), '_blank'); }}>
-                    <div className="flex items-start gap-3">
-                      {evt.image && <img src={evt.image} alt="" className="w-10 h-10 rounded-xl object-cover flex-shrink-0 bg-surface-4"/>}
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-sm font-medium text-slate-200 leading-snug line-clamp-2">{evt.title || m.question || 'Untitled'}</h3>
-                        <div className="flex items-center gap-3 mt-2 text-xs text-slate-500">
-                          <span>Vol: {formatUSD(evt.volume24hr || m.volume24hr)}</span>
-                          <span>Liquidity: {formatUSD(evt.liquidity || m.liquidity)}</span>
-                        </div>
-                        {displayOutcomes.length > 0 && (
-                          <div className="mt-2 space-y-1.5">
-                            {displayOutcomes.map((o, j) => (
-                              <ProbBar key={j} value={o.value} label={o.label} />
-                            ))}
+                  <div key={evt.id || i} className="glass-card overflow-hidden">
+                    <div className="p-4">
+                      {/* Title + Trade button */}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                          {evt.image && <img src={evt.image} alt="" className="w-10 h-10 rounded-md object-cover flex-shrink-0 bg-surface-4"/>}
+                          <div className="min-w-0">
+                            <h3 className="text-sm font-bold text-white leading-snug line-clamp-2">{evt.title || m.question || 'Untitled'}</h3>
+                            <div className="flex items-center gap-2 mt-1.5">
+                              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-[10px]">
+                                <TrendingUp size={10} className="text-emerald-400"/><span className="font-bold text-emerald-400">Vol:</span><span className="font-mono font-bold text-emerald-300">{formatUSD(evt.volume24hr || m.volume24hr)}</span>
+                              </span>
+                              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-cyan-500/10 border border-cyan-500/20 text-[10px]">
+                                <span className="font-bold text-cyan-400">Liq:</span><span className="font-mono font-bold text-cyan-300">{formatUSD(evt.liquidity || m.liquidity)}</span>
+                              </span>
+                            </div>
                           </div>
-                        )}
+                        </div>
+                        <a href={slug ? polymarketMarketUrl(slug) : '#'} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-bold bg-emerald-600/15 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-600/25 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all flex-shrink-0">
+                          <ArrowUpRight size={12}/> Trade
+                        </a>
                       </div>
-                      <ExternalLink size={14} className="text-slate-600 flex-shrink-0 mt-1"/>
                     </div>
+                    {/* Horizontal bar chart */}
+                    {chartData.length > 0 && (
+                      <div className="px-4 pb-3" style={{ height: Math.max(50, chartData.length * 22 + 8) }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 35, left: 5, bottom: 0 }}>
+                            <XAxis type="number" hide domain={[0, 'dataMax']} />
+                            <YAxis type="category" dataKey="name" width={70} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false}
+                              tickFormatter={v => v.length > 9 ? v.slice(0, 8) + '…' : v} />
+                            <Bar dataKey="value" radius={[0, 3, 3, 0]} maxBarSize={16}
+                              label={{ position: 'right', fontSize: 11, fill: '#e2e8f0', fontWeight: 800, formatter: v => `${Math.round(v * 100)}%` }}>
+                              {chartData.map((d, idx) => <Cell key={idx} fill={d.fill} />)}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -136,13 +143,17 @@ export default function Dashboard() {
              leaders.slice(0, 8).map((u, i) => {
               const addr = u.proxyWallet || '';
               const name = u.userName || shortenAddress(addr);
+              const b = generateBadges({ rank: i+1, category: 'Overall', timePeriod: 'DAY', pnl: u.pnl, vol: u.vol });
               return (
                 <div key={addr || i} onClick={() => addr && navigate(`/wallet/${addr}`)}
                   className="flex items-center gap-3 px-4 py-3 border-b border-white/[0.03] last:border-0 hover:bg-white/[0.03] cursor-pointer transition-all">
-                  <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0 ${i < 3 ? 'bg-amber-500/20 text-amber-400' : 'bg-surface-4 text-slate-500'}`}>{i + 1}</span>
-                  {u.profileImage ? <img src={u.profileImage} alt="" className="w-7 h-7 rounded-full object-cover flex-shrink-0"/> :
-                   <div className="w-7 h-7 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 flex-shrink-0"/>}
-                  <div className="flex-1 min-w-0"><p className="text-sm font-medium text-slate-200 truncate">{name}</p></div>
+                  <span className={`w-6 h-6 rounded-md flex items-center justify-center text-xs font-bold flex-shrink-0 ${i < 3 ? 'bg-amber-500/20 text-amber-400' : 'bg-surface-4 text-slate-500'}`}>{i + 1}</span>
+                  {u.profileImage ? <img src={u.profileImage} alt="" className="w-7 h-7 rounded-md object-cover flex-shrink-0"/> :
+                   <div className="w-7 h-7 rounded-md bg-gradient-to-br from-brand-500 to-brand-700 flex-shrink-0"/>}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-200 truncate">{name}</p>
+                    {b.length > 0 && <div className="mt-0.5"><BadgeList badges={b} size="sm"/></div>}
+                  </div>
                   <span className={`text-sm font-mono font-medium ${Number(u.pnl) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                     {Number(u.pnl) >= 0 ? '+' : ''}{formatUSD(u.pnl)}
                   </span>
@@ -153,7 +164,7 @@ export default function Dashboard() {
 
           <div className="mt-4 space-y-2">
             <Link to="/high-stakes" className="glass-card-hover p-4 flex items-center gap-3 group">
-              <div className="p-2 rounded-xl bg-gradient-to-br from-red-500/20 to-red-500/5"><Zap size={16} className="text-red-400"/></div>
+              <div className="p-2 rounded-md bg-gradient-to-br from-red-500/20 to-red-500/5"><Zap size={16} className="text-red-400"/></div>
               <div className="flex-1"><p className="text-sm font-medium text-slate-200">High Stakes Live</p><p className="text-xs text-slate-500">Watch big bets in real time</p></div>
               <ArrowRight size={14} className="text-slate-600 group-hover:text-slate-400 transition-colors"/>
             </Link>

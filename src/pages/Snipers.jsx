@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchGlobalTrades, fetchActivity, formatUSD, shortenAddress, polymarketProfileUrl, polymarketMarketUrl, timeAgo } from '../utils/api';
 import { PageHeader, TableSkeleton, FavoriteButton, EmptyState } from '../components/UI';
+import { generateBadges, BadgeList } from '../utils/badges';
 import { Crosshair, AlertTriangle, ExternalLink, RefreshCw, Shield, Zap, ArrowUpRight, ArrowDownLeft, Loader } from 'lucide-react';
 
 export default function Snipers() {
@@ -199,8 +200,8 @@ export default function Snipers() {
               <div key={s.address} className="glass-card overflow-hidden animate-slide-up" style={{ animationDelay: `${i * 50}ms` }}>
                 {/* Header */}
                 <div className="flex items-center gap-4 p-5 border-b border-white/[0.04]">
-                  {s.profileImage ? <img src={s.profileImage} alt="" className="w-12 h-12 rounded-xl object-cover flex-shrink-0"/> :
-                   <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-600 to-amber-600 flex items-center justify-center flex-shrink-0"><Crosshair size={20} className="text-white"/></div>}
+                  {s.profileImage ? <img src={s.profileImage} alt="" className="w-12 h-12 rounded-md object-cover flex-shrink-0"/> :
+                   <div className="w-12 h-12 rounded-md bg-gradient-to-br from-red-600 to-amber-600 flex items-center justify-center flex-shrink-0"><Crosshair size={20} className="text-white"/></div>}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span onClick={() => navigate(`/wallet/${s.address}`)} className="text-base font-bold text-slate-200 hover:text-brand-300 cursor-pointer">{s.name || shortenAddress(s.address)}</span>
@@ -211,9 +212,10 @@ export default function Snipers() {
                       <span>{s.marketCount} market{s.marketCount !== 1 ? 's' : ''}</span>
                       <span className="font-semibold text-white">{formatUSD(s.totalStaked)} staked</span>
                     </div>
+                    {(() => { const b = generateBadges({ vol: s.totalStaked, trades: s.activityCount, marketCount: s.marketCount }); return b.length > 0 ? <div className="mt-2"><BadgeList badges={b} size="sm"/></div> : null; })()}
                   </div>
                   <div className="flex items-center gap-2">
-                    <a href={polymarketProfileUrl(s.address)} target="_blank" rel="noopener noreferrer" className="p-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-500 hover:text-brand-400 transition-all"><ExternalLink size={14}/></a>
+                    <a href={polymarketProfileUrl(s.address)} target="_blank" rel="noopener noreferrer" className="p-2 rounded-md bg-white/[0.04] hover:bg-white/[0.08] text-slate-500 hover:text-brand-400 transition-all"><ExternalLink size={14}/></a>
                     <FavoriteButton address={s.address} name={s.name} size={14}/>
                   </div>
                 </div>
@@ -238,7 +240,7 @@ export default function Snipers() {
                   ) : s.trades.slice(0, 5).map((t, j) => {
                     const amt = Number(t.size || 0) * Number(t.price || 0);
                     return (
-                      <div key={`${t.transactionHash || j}-${j}`} className="flex items-center gap-3 p-3 rounded-xl bg-surface-1/50 hover:bg-surface-1 transition-all">
+                      <div key={`${t.transactionHash || j}-${j}`} className="flex items-center gap-3 p-3 rounded-md bg-surface-1/50 hover:bg-surface-1 transition-all">
                         <div className={`p-1.5 rounded-lg flex-shrink-0 ${t.side === 'BUY' ? 'bg-emerald-500/15' : 'bg-red-500/15'}`}>
                           {t.side === 'BUY' ? <ArrowUpRight size={14} className="text-emerald-400"/> : <ArrowDownLeft size={14} className="text-red-400"/>}
                         </div>

@@ -139,6 +139,27 @@ export async function fetchGlobalTrades({ limit = 100, minUSD = 0 } = {}) {
   return apiFetch(`${DATA_API}/trades?${p}`);
 }
 
+// Category-specific leaderboard
+export async function fetchCategoryLeaderboard(category, { timePeriod = 'ALL', orderBy = 'PNL', limit = 50 } = {}) {
+  const p = new URLSearchParams({ timePeriod, orderBy, limit: Math.min(limit, 50), category: category.toUpperCase() });
+  return apiFetch(`${DATA_API}/v1/leaderboard?${p}`);
+}
+
+// Fetch trades for a specific market token
+export async function fetchMarketTrades(tokenId, { limit = 50 } = {}) {
+  if (!tokenId) return [];
+  const p = new URLSearchParams({ market: tokenId, limit });
+  return apiFetch(`${DATA_API}/trades?${p}`);
+}
+
+// Extract clobTokenIds from a Gamma market object
+export function getTokenIds(market) {
+  try {
+    const ids = JSON.parse(market.clobTokenIds || '[]');
+    return Array.isArray(ids) ? ids : [];
+  } catch { return []; }
+}
+
 // ============================================
 // HELPERS
 // ============================================

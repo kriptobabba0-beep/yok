@@ -34,7 +34,7 @@
 
 @layer components {
   .glass-card {
-    @apply bg-surface-2/70 backdrop-blur-xl border border-white/[0.06] rounded-2xl;
+    @apply bg-surface-2/70 backdrop-blur-xl border border-white/[0.06] rounded-lg;
     box-shadow: 0 4px 24px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.04);
   }
 
@@ -63,7 +63,7 @@
   }
 
   .btn-primary {
-    @apply px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white text-sm font-medium rounded-xl transition-all duration-200;
+    @apply px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white text-sm font-medium rounded-md transition-all duration-200;
     box-shadow: 0 2px 12px rgba(99,102,241,0.3);
   }
   .btn-primary:hover {
@@ -72,11 +72,11 @@
   }
 
   .btn-ghost {
-    @apply px-4 py-2 bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 text-sm font-medium rounded-xl border border-white/[0.06] transition-all duration-200;
+    @apply px-4 py-2 bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 text-sm font-medium rounded-md border border-white/[0.06] transition-all duration-200;
   }
 
   .badge {
-    @apply inline-flex items-center px-2.5 py-0.5 text-xs font-medium rounded-full;
+    @apply inline-flex items-center px-2.5 py-0.5 text-xs font-medium rounded-md;
   }
   .badge-green {
     @apply badge bg-emerald-500/15 text-emerald-400 border border-emerald-500/20;
@@ -95,7 +95,7 @@
   }
 
   .input-field {
-    @apply w-full bg-surface-1 border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 outline-none transition-all duration-200;
+    @apply w-full bg-surface-1 border border-white/[0.08] rounded-md px-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 outline-none transition-all duration-200;
   }
   .input-field:focus {
     @apply border-brand-500/40 ring-2 ring-brand-500/10;
