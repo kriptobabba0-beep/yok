@@ -1,17 +1,15 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { fetchEvents, fetchMarketTrades, getTokenIds, fetchActivity, formatUSD, shortenAddress, polymarketMarketUrl, timeAgo } from '../utils/api';
+import { fetchEvents, fetchMarkets, fetchMarketTrades, formatUSD, shortenAddress, polymarketMarketUrl, timeAgo } from '../utils/api';
 import { PageHeader, TabBar, TableSkeleton, EmptyState } from '../components/UI';
-import { generateBadges, BadgeList } from '../utils/badges';
-import { TrendingUp, ExternalLink, Search, Timer, Flame, ArrowUpRight, Users, ChevronLeft, ChevronRight, Target, Star, DollarSign, X } from 'lucide-react';
+import { TrendingUp, Search, Timer, Flame, ArrowUpRight, ArrowDownLeft, Activity, BarChart3 } from 'lucide-react';
 
 const TIME_FILTERS = [
   { value: 'all', label: 'All' },
   { value: 'ending_today', label: 'Ending Today' },
   { value: 'ending_this_week', label: 'This Week' },
   { value: 'long_term', label: 'Long Term' },
-  { value: 'starting_soon', label: 'Starting Soon' },
 ];
 const COLORS = ['#6366f1','#10b981','#f59e0b','#ec4899','#06b6d4','#ef4444','#8b5cf6','#f97316'];
 
@@ -23,150 +21,215 @@ function ChartTooltip({ active, payload }) {
   </div>);
 }
 
-// ─── TOP HOLDERS ───
-function TopHoldersPanel({ markets, eventTitle, onClose }) {
+// ─── LIVE FEED PANEL ───
+function LiveFeedPanel({ markets, evt, onClose }) {
   const navigate = useNavigate();
-  const [holders, setHolders] = useState([]);
+  const [trades, setTrades] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(0);
-  const PER_PAGE = 5;
+  const [isLive, setIsLive] = useState(true);
+  const [newCount, setNewCount] = useState(0);
   const isMultiMarket = (markets || []).length > 1;
+  const seenRef = useRef(new Set());
+  const intervalRef = useRef(null);
+  const mountedRef = useRef(true);
 
-  useEffect(() => {
-    let m = true; setLoading(true); setPage(0);
-    (async () => {
-      const mkts = (markets || []).slice(0, 6);
-      const allTrades = [];
-
-      // Fetch trades using CORRECT clobTokenIds
-      for (const mk of mkts) {
-        const tokenIds = getTokenIds(mk);
-        const yesTokenId = tokenIds[0]; // First token = Yes/outcome token
-        if (!yesTokenId) continue;
-        try {
-          const trades = await fetchMarketTrades(yesTokenId, { limit: 50 });
-          if (Array.isArray(trades)) {
-            trades.forEach(t => {
-              // Tag each trade with which sub-market it belongs to
-              t._subMarketName = mk.groupItemTitle || '';
-            });
-            allTrades.push(...trades);
-          }
-        } catch {}
+  // Build fetch jobs once
+  const fetchJobs = useMemo(() => {
+    const mkts = (markets || []);
+    const ranked = mkts.map(mk => {
+      let p = []; try { p = JSON.parse(mk.outcomePrices || '[]'); } catch {}
+      return { mk, prob: Number(p[0] || 0), name: mk.groupItemTitle || '' };
+    }).sort((a, b) => b.prob - a.prob);
+    const jobs = [];
+    if (isMultiMarket) {
+      for (const { mk, name } of ranked) {
+        const mktId = mk.conditionId || mk.id;
+        if (mktId) jobs.push({ mktId, subName: name });
       }
+    } else {
+      const fm = mkts[0];
+      if (fm) {
+        const mktId = fm.conditionId || fm.id;
+        if (mktId) jobs.push({ mktId, subName: '' });
+      }
+    }
+    return jobs;
+  }, [markets, isMultiMarket]);
 
-      // Group by wallet — only BUY
-      const wMap = {};
-      allTrades.forEach(t => {
-        if (t.side !== 'BUY') return;
-        const addr = t.proxyWallet || t.maker || '';
-        if (!addr) return;
-        if (!wMap[addr]) wMap[addr] = { address: addr, name: t.name || t.pseudonym || '', totalUSDC: 0, trades: [], subMarketAmounts: {} };
-        const w = wMap[addr];
+  const NEW_WINDOW = 180;  // 3 min — trades newer than this appear in feed
+  const KEEP_WINDOW = 600; // 10 min — trades stay visible until this age
+
+  const MIN_USD = 5;
+
+  // Helper: fetch one sub-market's trades
+  const fetchOne = useCallback(async (job, limit) => {
+    try {
+      const tr = await fetchMarketTrades(job.mktId, { limit });
+      if (!Array.isArray(tr)) return [];
+      return tr.map(t => ({ ...t, _subName: job.subName, _yesNo: t.outcome || 'Yes' }));
+    } catch { return []; }
+  }, []);
+
+  // Initial load — fetch top 5 sub-markets, show last 10 min, $5+ only
+  const loadAll = useCallback(async () => {
+    try {
+      const jobs = fetchJobs.slice(0, Math.min(5, fetchJobs.length));
+      const results = await Promise.allSettled(jobs.map(j => fetchOne(j, 15)));
+      const now = Math.floor(Date.now() / 1000);
+      const all = [];
+      results.forEach(r => { if (r.status === 'fulfilled') all.push(...r.value); });
+      const filtered = all.filter(t => {
+        if (!t.timestamp || (now - Number(t.timestamp)) > KEEP_WINDOW) return false;
         const amt = Number(t.usdcSize || 0) || (Number(t.size || 0) * Number(t.price || 0));
-        w.totalUSDC += amt;
-        w.trades.push(t);
-        // Track investment per sub-market
-        const subName = t._subMarketName || t.outcome || 'Yes';
-        w.subMarketAmounts[subName] = (w.subMarketAmounts[subName] || 0) + amt;
+        return amt >= MIN_USD;
+      });
+      filtered.sort((a, b) => (Number(b.timestamp || 0)) - (Number(a.timestamp || 0)));
+      filtered.forEach(t => seenRef.current.add(t.transactionHash || `${t.timestamp}-${t.proxyWallet}`));
+      if (mountedRef.current) { setTrades(filtered.slice(0, 50)); setLoading(false); }
+    } catch {
+      if (mountedRef.current) setLoading(false);
+    }
+  }, [fetchJobs, fetchOne]);
+
+  // Rotating refresh — 3 sub-markets per tick, $5+ filter
+  const rotRef = useRef(0);
+  const isRefreshingRef = useRef(false);
+  const refresh = useCallback(async () => {
+    if (fetchJobs.length === 0 || isRefreshingRef.current || !mountedRef.current) return;
+    isRefreshingRef.current = true;
+    try {
+      const count = Math.min(4, fetchJobs.length);
+      const jobs = [];
+      for (let i = 0; i < count; i++) jobs.push(fetchJobs[(rotRef.current + i) % fetchJobs.length]);
+      rotRef.current = (rotRef.current + count) % fetchJobs.length;
+
+      const results = await Promise.allSettled(jobs.map(j => fetchOne(j, 8)));
+      const now = Math.floor(Date.now() / 1000);
+      const fresh = [];
+      results.forEach(r => {
+        if (r.status !== 'fulfilled') return;
+        r.value.forEach(t => {
+          if (!t.timestamp || (now - Number(t.timestamp)) > NEW_WINDOW) return;
+          const amt = Number(t.usdcSize || 0) || (Number(t.size || 0) * Number(t.price || 0));
+          if (amt < MIN_USD) return;
+          const k = t.transactionHash || `${t.timestamp}-${t.proxyWallet}`;
+          if (!seenRef.current.has(k)) {
+            seenRef.current.add(k);
+            t._isNew = true;
+            fresh.push(t);
+          }
+        });
       });
 
-      let sorted = Object.values(wMap).sort((a, b) => b.totalUSDC - a.totalUSDC).slice(0, 20);
+      if (mountedRef.current) {
+        setTrades(prev => {
+          const cutoff = now - KEEP_WINDOW;
+          const kept = prev.filter(t => Number(t.timestamp || 0) > cutoff).map(t => t._isNew ? { ...t, _isNew: false } : t);
+          if (fresh.length > 0) {
+            fresh.sort((a, b) => (Number(b.timestamp || 0)) - (Number(a.timestamp || 0)));
+            return [...fresh, ...kept].slice(0, 60);
+          }
+          return kept;
+        });
+      }
+    } catch {}
+    isRefreshingRef.current = false;
+  }, [fetchJobs, fetchOne]);
 
-      // Calculate prediction + win rate from their own trades
-      sorted = sorted.map(h => {
-        // Prediction: for multi-market events, the sub-market they invested most in
-        // For binary events, just "Yes" or "No"
-        let prediction = 'Yes';
-        if (isMultiMarket) {
-          const topSub = Object.entries(h.subMarketAmounts).sort((a, b) => b[1] - a[1])[0];
-          prediction = topSub ? topSub[0] : 'Yes';
-        } else {
-          // Binary: all BUY trades on Yes token = predicted Yes
-          prediction = 'Yes';
-        }
+  // Mount / unmount
+  useEffect(() => {
+    mountedRef.current = true;
+    loadAll();
+    return () => { mountedRef.current = false; clearInterval(intervalRef.current); };
+  }, [loadAll]);
 
-        // Win rate: use price-based estimate
-        // If avg buy price < current market price, they're "winning"
-        // Simple approach: ratio of trades with positive implied gain
-        const buyPrices = h.trades.map(t => Number(t.price || 0)).filter(p => p > 0);
-        const avgPrice = buyPrices.length > 0 ? buyPrices.reduce((s, p) => s + p, 0) / buyPrices.length : 0;
-        // Rough win rate based on total P&L direction — show trade count instead
-        const tradeCount = h.trades.length;
-
-        // Category detection
-        const catCounts = { Sports: 0, Crypto: 0, Politics: 0, General: 0 };
-        const catKw = { Sports: ['nba','nfl','mlb','nhl','ufc','la liga','premier','playoff','vs','match','champion','game','soccer','tennis','f1'],
-          Crypto: ['bitcoin','ethereum','btc','eth','crypto','solana','token','defi','coin','price'],
-          Politics: ['trump','biden','election','president','congress','democrat','republican','vote','senate'] };
-        const titleLow = (eventTitle || '').toLowerCase();
-        let topCat = 'General';
-        for (const [cat, kws] of Object.entries(catKw)) {
-          if (kws.some(k => titleLow.includes(k))) { topCat = cat; break; }
-        }
-
-        return { ...h, prediction, tradeCount, topCategory: topCat, avgPrice };
-      });
-
-      if (m) { setHolders(sorted); setLoading(false); }
-    })();
-    return () => { m = false; };
-  }, [markets, eventTitle, isMultiMarket]);
-
-  const totalPages = Math.ceil(holders.length / PER_PAGE);
-  const pageItems = holders.slice(page * PER_PAGE, (page + 1) * PER_PAGE);
+  // Polling — rotate 4 sub-markets every 4 seconds
+  useEffect(() => {
+    clearInterval(intervalRef.current);
+    if (isLive && fetchJobs.length > 0) {
+      intervalRef.current = setInterval(refresh, 4000);
+    }
+    return () => clearInterval(intervalRef.current);
+  }, [isLive, refresh, fetchJobs]);
 
   return (
     <div className="glass-card overflow-hidden animate-slide-up">
       <div className="flex items-center justify-between px-5 py-3 border-b border-white/[0.06] bg-surface-3/50">
-        <span className="text-base font-bold text-white flex items-center gap-2"><Users size={16} className="text-brand-400"/> Top 20 Holders</span>
-        {/* BIG RED CLOSE BUTTON */}
-        <button onClick={onClose} className="flex items-center gap-1.5 px-4 py-2 rounded-md bg-red-500/15 text-red-400 border border-red-500/30 hover:bg-red-500/25 font-bold text-sm transition-all">
-          <X size={16}/> Close
-        </button>
-      </div>
-      {loading ? <div className="p-5"><TableSkeleton rows={5}/></div> : holders.length === 0 ? (
-        <div className="p-10 text-center text-sm text-slate-500">No holder data available for this market</div>
-      ) : (<>
-        <div className="divide-y divide-white/[0.04]">
-          {pageItems.map((h, i) => {
-            const rank = page * PER_PAGE + i + 1;
-            return (
-              <div key={h.address} className="px-5 py-4 hover:bg-white/[0.02] transition-all">
-                <div className="flex items-center gap-3 mb-3">
-                  <span className={`w-8 h-8 rounded-md flex items-center justify-center text-sm font-bold flex-shrink-0 ${rank <= 3 ? 'bg-gradient-to-br from-amber-400 to-yellow-300 text-black' : 'bg-surface-4 text-slate-400'}`}>{rank}</span>
-                  <span onClick={() => navigate(`/wallet/${h.address}`)} className="text-sm font-bold text-white hover:text-brand-300 cursor-pointer">{h.name || shortenAddress(h.address)}</span>
-                  <span className="text-sm px-3 py-1 rounded-md font-bold bg-brand-500/20 text-brand-200 border border-brand-500/30">
-                    Predicted: {h.prediction}
-                  </span>
-                </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="bg-emerald-500/10 border border-emerald-500/25 rounded-md p-3">
-                    <div className="flex items-center gap-1.5 mb-1"><DollarSign size={14} className="text-emerald-400"/><span className="text-[11px] font-bold text-emerald-400 uppercase">Invested</span></div>
-                    <p className="text-xl font-mono font-black text-emerald-300">{formatUSD(h.totalUSDC)}</p>
-                  </div>
-                  <div className="bg-brand-500/10 border border-brand-500/25 rounded-md p-3">
-                    <div className="flex items-center gap-1.5 mb-1"><Target size={14} className="text-brand-400"/><span className="text-[11px] font-bold text-brand-400 uppercase">Trades</span></div>
-                    <p className="text-xl font-mono font-black text-brand-300">{h.tradeCount}</p>
-                    <p className="text-[10px] text-slate-500 mt-0.5">@ avg {Math.round(h.avgPrice * 100)}¢</p>
-                  </div>
-                  <div className="bg-pink-500/10 border border-pink-500/25 rounded-md p-3">
-                    <div className="flex items-center gap-1.5 mb-1"><Star size={14} className="text-pink-400"/><span className="text-[11px] font-bold text-pink-400 uppercase">Category</span></div>
-                    <p className="text-lg font-bold text-pink-300">{h.topCategory}</p>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+        <span className="text-base font-bold text-white flex items-center gap-2">
+          <Activity size={16} className="text-brand-400"/> Live Feed
+          {isLive && (
+            <span className="flex items-center gap-1.5 ml-2 text-xs font-semibold text-emerald-400">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"/>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"/>
+              </span>
+              Live
+            </span>
+          )}
+        </span>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setIsLive(l => !l)}
+            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${isLive ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20' : 'bg-surface-4 text-slate-500 border border-white/[0.04]'}`}>
+            {isLive ? 'Auto-refresh ON' : 'Auto-refresh OFF'}
+          </button>
+          <button onClick={onClose} className="flex items-center gap-1.5 px-4 py-2 rounded-md bg-red-500/15 text-red-400 border border-red-500/30 hover:bg-red-500/25 font-bold text-sm transition-all">
+            ✕ Close
+          </button>
         </div>
-        {totalPages > 1 && (
-          <div className="flex items-center justify-center gap-2 px-4 py-3 border-t border-white/[0.06]">
-            <button onClick={() => setPage(Math.max(0,page-1))} disabled={page===0} className="p-1.5 rounded-md hover:bg-white/5 text-slate-400 disabled:opacity-20"><ChevronLeft size={16}/></button>
-            {Array.from({length:totalPages},(_,p)=>(<button key={p} onClick={()=>setPage(p)} className={`w-8 h-8 rounded-md text-xs font-bold transition-all ${page===p?'bg-brand-600 text-white':'bg-surface-4 text-slate-400 hover:text-white'}`}>{p+1}</button>))}
-            <button onClick={() => setPage(Math.min(totalPages-1,page+1))} disabled={page>=totalPages-1} className="p-1.5 rounded-md hover:bg-white/5 text-slate-400 disabled:opacity-20"><ChevronRight size={16}/></button>
-          </div>
-        )}
-      </>)}
+      </div>
+
+      {loading ? <div className="p-5"><TableSkeleton rows={5}/></div> : (
+        <div className="p-4">
+          <p className="text-[10px] text-slate-600 mb-3">Trades $5+ appear within 3 minutes and stay visible for 10 minutes.</p>
+          {trades.length === 0 ? <p className="text-sm text-slate-500 py-6 text-center">No trades in the last 10 minutes — waiting for new activity…</p> : (
+            <div className="space-y-1.5 max-h-[500px] overflow-y-auto">
+              {trades.map((t, i) => {
+                const shares = Number(t.size || 0);
+                const price = Number(t.price || 0);
+                const amt = Number(t.usdcSize || 0) || (shares * price);
+                const isBuy = t.side === 'BUY';
+                const name = t.name || t.pseudonym || shortenAddress(t.proxyWallet || '');
+                const isNo = t._yesNo === 'No';
+                const priceCents = (price * 100).toFixed(1).replace(/\.0$/, '');
+
+                // Format: "name bought/sold SHARES Yes/No for SUB-MARKET at PRICEc ($AMT)"
+                return (
+                  <div key={i} className={`flex items-center gap-2.5 px-3 py-2.5 rounded-md hover:bg-white/[0.02] transition-all ${t._isNew ? 'animate-slide-up bg-brand-500/[0.04] border-l-2 border-l-brand-500' : ''}`}>
+                    <div className={`p-1 rounded-md flex-shrink-0 ${isBuy ? 'bg-emerald-500/15' : 'bg-red-500/15'}`}>
+                      {isBuy ? <ArrowUpRight size={13} className="text-emerald-400"/> : <ArrowDownLeft size={13} className="text-red-400"/>}
+                    </div>
+                    <p className="text-sm text-slate-300 flex-1">
+                      <span onClick={() => t.proxyWallet && navigate(`/wallet/${t.proxyWallet}`)}
+                        className="font-bold text-white hover:text-brand-300 cursor-pointer">{name}</span>
+                      {' '}
+                      <span className={isBuy ? 'text-slate-400' : 'text-slate-400'}>{isBuy ? 'bought' : 'sold'}</span>
+                      {' '}
+                      <span className={`font-bold ${isNo ? 'text-red-400' : 'text-emerald-400'}`}>
+                        {shares >= 1 ? Math.round(shares).toLocaleString() : shares.toFixed(1)} {isNo ? 'No' : 'Yes'}
+                      </span>
+                      {' '}
+                      {isMultiMarket && t._subName && (
+                        <>
+                          <span className="text-slate-500">for</span>
+                          {' '}
+                          <span className="font-semibold text-slate-200">{t._subName}</span>
+                          {' '}
+                        </>
+                      )}
+                      <span className="text-slate-500">at</span>
+                      {' '}
+                      <span className="text-slate-300">{priceCents}¢</span>
+                      {' '}
+                      <span className="text-slate-500">({formatUSD(amt)})</span>
+                    </p>
+                    <span className="text-[10px] text-slate-600 flex-shrink-0">{t.timestamp ? timeAgo(t.timestamp) : ''}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -179,13 +242,61 @@ export default function TrendingMarkets() {
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
   const [timeFilter, setTimeFilter] = useState('all');
   const [showSportsOnly, setShowSportsOnly] = useState(false);
-  const [hideLiveSports, setHideLiveSports] = useState(true);
   const [expandedMarket, setExpandedMarket] = useState(null);
 
   useEffect(() => {
     let m = true; setLoading(true);
-    fetchEvents({ limit: 100, order: 'volume24hr', ascending: false, active: true, closed: false })
-      .then(d => { if (m) { setEvents(Array.isArray(d) ? d : []); setLoading(false); }}).catch(() => m && setLoading(false));
+    // Fetch: volume-sorted events, volume-sorted markets, AND newest events
+    Promise.allSettled([
+      fetchEvents({ limit: 100, order: 'volume24hr', ascending: false, active: true, closed: false }),
+      fetchMarkets({ limit: 100, order: 'volume24hr', ascending: false, active: true, closed: false }),
+    ]).then(([evtRes, mktRes]) => {
+      if (!m) return;
+      const events = evtRes.status === 'fulfilled' && Array.isArray(evtRes.value) ? evtRes.value : [];
+      const markets = mktRes.status === 'fulfilled' && Array.isArray(mktRes.value) ? mktRes.value : [];
+
+      // Build a map of event volumes from individual markets (more accurate)
+      const eventVolMap = {};
+      markets.forEach(mk => {
+        const eid = mk.eventId || mk.event_id;
+        if (!eid) return;
+        const vol = Number(mk.volume24hr || 0);
+        eventVolMap[eid] = (eventVolMap[eid] || 0) + vol;
+      });
+
+      // Update event volumes with the more accurate market-level data
+      const merged = events.map(evt => {
+        const betterVol = eventVolMap[evt.id];
+        if (betterVol && betterVol > Number(evt.volume24hr || 0)) {
+          return { ...evt, volume24hr: betterVol };
+        }
+        return evt;
+      });
+
+      // Also add any high-volume markets that aren't in the events list
+      const eventIds = new Set(events.map(e => e.id));
+      markets.forEach(mk => {
+        const eid = mk.eventId || mk.event_id;
+        if (eid && !eventIds.has(eid) && Number(mk.volume24hr || 0) > 100000) {
+          merged.push({
+            id: eid || mk.id,
+            title: mk.question,
+            markets: [mk],
+            volume24hr: mk.volume24hr,
+            liquidity: mk.liquidity,
+            image: mk.image,
+            slug: mk.eventSlug,
+            active: true,
+          });
+          eventIds.add(eid || mk.id);
+        }
+      });
+
+      // Re-sort by volume
+      merged.sort((a, b) => Number(b.volume24hr || 0) - Number(a.volume24hr || 0));
+      setEvents(merged);
+      setLoading(false);
+    });
     return () => { m = false; };
   }, []);
 
@@ -199,6 +310,13 @@ export default function TrendingMarkets() {
       const isLiveMatch = isSports && isMatch && !/winner|champion|mvp/i.test(title);
       const endTime = (evt.endDate || fm.endDate || fm.endDateIso) ? new Date(evt.endDate || fm.endDate || fm.endDateIso).getTime() : null;
       const startTime = (evt.startDate || fm.startDate) ? new Date(evt.startDate || fm.startDate).getTime() : null;
+      const createdAt = (() => {
+        const raw = evt.createdAt || evt.creationDate || evt.created_at || evt.published_at ||
+                    fm.createdAt || fm.creationDate || fm.created_at || fm.published_at || null;
+        if (!raw) return null;
+        const ts = new Date(raw).getTime();
+        return isNaN(ts) ? null : ts;
+      })();
       let hasStarted = false, minutesUntilStart = null;
       if (isLiveMatch && startTime) { hasStarted = startTime < now; if (!hasStarted) minutesUntilStart = Math.round((startTime - now) / 60000); }
       else if (startTime && startTime > now) minutesUntilStart = Math.round((startTime - now) / 60000);
@@ -209,7 +327,7 @@ export default function TrendingMarkets() {
         let oc=[],pr=[]; try{oc=JSON.parse(fm.outcomes||'[]')}catch{} try{pr=JSON.parse(fm.outcomePrices||'[]')}catch{}
         chartData=oc.map((o,idx)=>({name:o,value:Number(pr[idx]||0),pct:Math.round(Number(pr[idx]||0)*100),fill:COLORS[idx%COLORS.length]}));
       }
-      return { ...evt, firstMarket: fm, isSports, isLiveMatch, hasStarted, minutesUntilStart, endTime, chartData,
+      return { ...evt, firstMarket: fm, isSports, isLiveMatch, hasStarted, minutesUntilStart, endTime, createdAt, chartData,
         volume24hr: Number(evt.volume24hr || fm.volume24hr || 0), liquidity: Number(evt.liquidity || fm.liquidity || 0) };
     });
   }, [events]);
@@ -221,19 +339,17 @@ export default function TrendingMarkets() {
       if (e.endTime && e.endTime < now) return false;
       const t=(e.title||'').toLowerCase();
       const mp={jan:0,january:0,feb:1,february:1,mar:2,march:2,apr:3,april:3,may:4,jun:5,june:5,jul:6,july:6,aug:7,august:7,sep:8,september:8,oct:9,october:9,nov:10,november:10,dec:11,december:11};
-      const m=t.match(/(?:by|before)\s+(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?\s+(\d{1,2})/i);
-      if(m){const mi=mp[m[1].toLowerCase().replace('.','')];if(mi!==undefined&&new Date(today.getFullYear(),mi,parseInt(m[2],10),23,59,59).getTime()<now)return false;}
+      const m2=t.match(/(?:by|before)\s+(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?\s+(\d{1,2})/i);
+      if(m2){const mi=mp[m2[1].toLowerCase().replace('.','')];if(mi!==undefined&&new Date(today.getFullYear(),mi,parseInt(m2[2],10),23,59,59).getTime()<now)return false;}
       return true;
     });
-    if (hideLiveSports) r=r.filter(e=>!(e.isLiveMatch&&e.hasStarted));
     if (showSportsOnly) r=r.filter(e=>e.isSports);
-    if (timeFilter==='starting_soon'){r=r.filter(e=>e.minutesUntilStart>0&&e.minutesUntilStart<=120);r.sort((a,b)=>a.minutesUntilStart-b.minutesUntilStart);}
-    else if(timeFilter==='ending_today'){const eod=new Date();eod.setHours(23,59,59,999);r=r.filter(e=>e.endTime&&e.endTime<=eod.getTime());}
+    if(timeFilter==='ending_today'){const eod=new Date();eod.setHours(23,59,59,999);r=r.filter(e=>e.endTime&&e.endTime<=eod.getTime());}
     else if(timeFilter==='ending_this_week'){const eow=new Date();eow.setDate(eow.getDate()+7);r=r.filter(e=>e.endTime&&e.endTime<=eow.getTime());}
     else if(timeFilter==='long_term'){const eow=new Date();eow.setDate(eow.getDate()+7);r=r.filter(e=>!e.endTime||e.endTime>eow.getTime());}
     if(searchQuery.trim()){const q=searchQuery.toLowerCase();r=r.filter(e=>(e.title||'').toLowerCase().includes(q)||(e.firstMarket.question||'').toLowerCase().includes(q));}
     return r;
-  }, [processedEvents, timeFilter, showSportsOnly, hideLiveSports, searchQuery]);
+  }, [processedEvents, timeFilter, showSportsOnly, searchQuery]);
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -245,7 +361,6 @@ export default function TrendingMarkets() {
       </div>
       <div className="flex items-center gap-4 flex-wrap">
         <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={showSportsOnly} onChange={e=>setShowSportsOnly(e.target.checked)} className="w-4 h-4 rounded bg-surface-3 border-white/10"/><span className="text-xs text-slate-400">Sports only</span></label>
-        <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={hideLiveSports} onChange={e=>setHideLiveSports(e.target.checked)} className="w-4 h-4 rounded bg-surface-3 border-white/10"/><span className="text-xs text-slate-400">Hide live matches</span></label>
         <span className="ml-auto text-xs text-slate-600">{filteredEvents.length} markets</span>
       </div>
 
@@ -258,7 +373,6 @@ export default function TrendingMarkets() {
               <div key={evt.id||i} className="animate-slide-up" style={{animationDelay:`${Math.min(i*15,120)}ms`}}>
                 <div className="glass-card overflow-hidden">
                   <div className="p-4">
-                    {/* TOP: Title left, Buttons right */}
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-start gap-3 flex-1 min-w-0">
                         <div className="flex flex-col items-center gap-2 flex-shrink-0">
@@ -273,19 +387,17 @@ export default function TrendingMarkets() {
                           </div>
                         </div>
                       </div>
-                      {/* BUTTONS — top right */}
                       <div className="flex items-center gap-2 flex-shrink-0">
                         <button onClick={()=>setExpandedMarket(isOpen?null:evt.id)}
-                          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-bold transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 ${isOpen?'bg-brand-600 text-white shadow-brand-600/30':'bg-brand-600/15 text-brand-300 border border-brand-500/25 hover:bg-brand-600/25'}`}>
-                          <Users size={15}/> Top Holders
+                          className={`btn-pulse flex items-center gap-2 px-4 py-2 rounded-md text-sm font-bold transition-all hover:-translate-y-0.5 ${isOpen?'bg-brand-600 text-white':'bg-brand-600/15 text-brand-300 border border-brand-500/25 hover:bg-brand-600/25'}`}>
+                          <Activity size={15}/> Live Feed
                         </button>
                         <a href={slug?polymarketMarketUrl(slug):'#'} target="_blank" rel="noopener noreferrer"
-                          className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-bold bg-emerald-600/15 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-600/25 shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all">
+                          className="btn-pulse-green flex items-center gap-2 px-4 py-2 rounded-md text-sm font-bold bg-emerald-600/15 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-600/25 hover:-translate-y-0.5 transition-all">
                           <ArrowUpRight size={15}/> Trade
                         </a>
                       </div>
                     </div>
-                    {/* Vol + Liq badges */}
                     <div className="flex items-center gap-3 mt-3 ml-12">
                       <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-emerald-500/10 border border-emerald-500/20">
                         <TrendingUp size={13} className="text-emerald-400"/><span className="text-[11px] font-bold text-emerald-400">Vol:</span><span className="text-sm font-mono font-black text-emerald-300">{formatUSD(evt.volume24hr)}</span>
@@ -295,7 +407,6 @@ export default function TrendingMarkets() {
                       </span>
                     </div>
                   </div>
-                  {/* CHART — full width below */}
                   {evt.chartData.length > 0 && (
                     <div className="px-4 pb-4" style={{height: Math.max(70, evt.chartData.length * 26 + 12)}}>
                       <ResponsiveContainer width="100%" height="100%">
@@ -311,7 +422,7 @@ export default function TrendingMarkets() {
                     </div>
                   )}
                 </div>
-                {isOpen && <div className="mt-2"><TopHoldersPanel markets={evt.markets} eventTitle={evt.title||evt.firstMarket.question||''} onClose={()=>setExpandedMarket(null)}/></div>}
+                {isOpen && <div className="mt-2"><LiveFeedPanel markets={evt.markets} evt={evt} onClose={()=>setExpandedMarket(null)}/></div>}
               </div>
             );
           })}

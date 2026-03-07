@@ -130,6 +130,21 @@
     100% { transform: scale(2.5); opacity: 0; }
   }
 
+  @keyframes btnGlow {
+    0%, 100% { box-shadow: 0 0 4px rgba(99,102,241,0.2); }
+    50% { box-shadow: 0 0 16px rgba(99,102,241,0.4); }
+  }
+  .btn-pulse {
+    animation: btnGlow 2s ease-in-out infinite;
+  }
+  .btn-pulse-green {
+    animation: btnGlowGreen 2s ease-in-out infinite;
+  }
+  @keyframes btnGlowGreen {
+    0%, 100% { box-shadow: 0 0 4px rgba(16,185,129,0.2); }
+    50% { box-shadow: 0 0 16px rgba(16,185,129,0.4); }
+  }
+
   .noise-overlay {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;

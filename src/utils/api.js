@@ -152,6 +152,12 @@ export async function fetchMarketTrades(tokenId, { limit = 50 } = {}) {
   return apiFetch(`${DATA_API}/trades?${p}`);
 }
 
+// Fetch price history (CLOB timeseries)
+export async function fetchPriceHistory(tokenId, interval = '1d', fidelity = 60) {
+  if (!tokenId) return [];
+  return apiFetch(`${CLOB_API}/prices-history?market=${tokenId}&interval=${interval}&fidelity=${fidelity}`);
+}
+
 // Extract clobTokenIds from a Gamma market object
 export function getTokenIds(market) {
   try {

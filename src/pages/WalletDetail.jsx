@@ -21,14 +21,22 @@ export default function WalletDetail() {
   const [loading, setLoading] = useState(true);
   const [tabLoading, setTabLoading] = useState(false);
 
+  const [activityStats, setActivityStats] = useState(null);
+
   useEffect(() => {
     let m = true;
     setLoading(true);
-    Promise.allSettled([fetchProfile(address), fetchPositions(address)])
-      .then(([p, pos]) => {
+    Promise.allSettled([fetchProfile(address), fetchPositions(address), fetchActivity(address, { limit: 100 })])
+      .then(([p, pos, act]) => {
         if (!m) return;
         setProfile(p.status === 'fulfilled' ? p.value : null);
         setPositions(pos.status === 'fulfilled' && Array.isArray(pos.value) ? pos.value : []);
+        // Compute activity stats for badges
+        const acts = act.status === 'fulfilled' && Array.isArray(act.value) ? act.value : [];
+        const tradeLike = acts.filter(a => a.side && a.title);
+        const totalVol = tradeLike.reduce((s, a) => s + (Number(a.usdcSize || 0) || Number(a.size || 0) * Number(a.price || 0)), 0);
+        const marketSet = new Set(tradeLike.map(a => a.title).filter(Boolean));
+        setActivityStats({ trades: tradeLike.length, vol: totalVol, marketCount: marketSet.size });
         setLoading(false);
       });
     return () => { m = false; };
@@ -74,7 +82,13 @@ export default function WalletDetail() {
 
       {/* Badges */}
       {!loading && (() => {
-        const badges = generateBadges({ pnl: totalPnl, positions: positions.length });
+        const badges = generateBadges({
+          pnl: totalPnl,
+          positions: positions.length,
+          vol: activityStats?.vol || 0,
+          trades: activityStats?.trades || 0,
+          marketCount: activityStats?.marketCount || 0,
+        });
         return badges.length > 0 ? (
           <div className="glass-card p-4">
             <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-2">Achievements</p>

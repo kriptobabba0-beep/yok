@@ -5,12 +5,13 @@ import { PageHeader, TabBar, TableSkeleton, EmptyState } from '../components/UI'
 import { generateBadges, BadgeList } from '../utils/badges';
 import { Award, Crown, Trophy, TrendingUp, Coins, Star, Shield, ExternalLink, ArrowUpRight, BarChart3 } from 'lucide-react';
 
-// Only categories that Polymarket API actually supports
+// Categories that Polymarket API supports
 const CATEGORIES = [
   { id: 'POLITICS', label: 'Politics', icon: Shield, color: '#ef4444' },
   { id: 'SPORTS', label: 'Sports', icon: Trophy, color: '#10b981' },
   { id: 'CRYPTO', label: 'Crypto', icon: Coins, color: '#f59e0b' },
   { id: 'CULTURE', label: 'Culture', icon: Star, color: '#ec4899' },
+  { id: 'OVERALL', label: 'Overall', icon: Crown, color: '#6366f1' },
 ];
 
 const TIME_TABS = [
@@ -37,6 +38,7 @@ export default function MarketLeaders() {
   const [catLoading, setCatLoading] = useState(true);
   const [activityCache, setActivityCache] = useState({});
   const [actLoading, setActLoading] = useState({});
+  const [showReturnInfo, setShowReturnInfo] = useState(false);
   const loadedRef = useRef(new Set());
 
   // Fetch volumes for category sorting
@@ -205,7 +207,11 @@ export default function MarketLeaders() {
                           <p className="text-sm font-bold text-brand-300 mt-1">{tradeCount > 0 ? tradeCount : isActLoading ? '…' : '—'}</p>
                         </div>
                         <div className={`rounded-md p-2.5 border ${returnPct > 0 ? 'bg-emerald-500/10 border-emerald-500/20' : returnPct < 0 ? 'bg-red-500/10 border-red-500/20' : 'bg-surface-3/50 border-white/[0.04]'}`}>
-                          <p className={`text-[9px] uppercase tracking-wider font-bold ${returnPct > 0 ? 'text-emerald-400' : returnPct < 0 ? 'text-red-400' : 'text-slate-500'}`}>Return Rate</p>
+                          <p className={`text-[9px] uppercase tracking-wider font-bold flex items-center gap-1 ${returnPct > 0 ? 'text-emerald-400' : returnPct < 0 ? 'text-red-400' : 'text-slate-500'}`}>
+                            Return Rate
+                            <span onClick={(e) => { e.stopPropagation(); setShowReturnInfo(v => !v); }}
+                              className="cursor-pointer text-slate-500 hover:text-brand-400 transition-colors text-[11px]">ⓘ</span>
+                          </p>
                           <p className={`text-sm font-mono font-black mt-1 ${returnPct > 0 ? 'text-emerald-300' : returnPct < 0 ? 'text-red-300' : 'text-slate-500'}`}>
                             {vol > 0 ? `${returnPct > 0 ? '+' : ''}${returnPct}%` : 'N/A'}
                           </p>
@@ -239,6 +245,31 @@ export default function MarketLeaders() {
             );
           })}
         </div>
+      )}
+
+      {/* Return Rate explanation */}
+      {showReturnInfo && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/40" onClick={() => setShowReturnInfo(false)}/>
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-96 glass-card p-6 animate-slide-up">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-white">What is Return Rate?</h3>
+              <button onClick={() => setShowReturnInfo(false)} className="text-slate-500 hover:text-white text-lg">✕</button>
+            </div>
+            <p className="text-sm text-slate-300 leading-relaxed mb-3">
+              Return Rate measures how efficiently a trader generates profit relative to their total trading volume.
+            </p>
+            <div className="bg-surface-3/50 rounded-md p-3 border border-white/[0.04] mb-3">
+              <p className="text-xs text-brand-400 font-bold font-mono">Return Rate = (P&L ÷ Volume) × 100</p>
+            </div>
+            <p className="text-xs text-slate-400 leading-relaxed mb-2">
+              For example, if a trader has $5,000 profit on $50,000 total volume, their return rate is 10%. This means they earned 10 cents of profit for every dollar they traded.
+            </p>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              A higher return rate indicates smarter, more efficient trading. A trader with $10K profit on $50K volume (20% return) is more efficient than one with $100K profit on $10M volume (1% return).
+            </p>
+          </div>
+        </>
       )}
     </div>
   );

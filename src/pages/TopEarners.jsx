@@ -16,16 +16,6 @@ const RANK_TABS = [
   { value: 'VOL', label: 'By Volume' },
 ];
 
-// Extract trade count from all possible field names
-function getTradeCount(u) {
-  const fields = ['numTrades', 'numberOfTrades', 'num_trades', 'tradeCount', 'trades', 'numMarkets', 'markets_traded'];
-  for (const f of fields) {
-    const v = Number(u[f] || 0);
-    if (v > 0) return v;
-  }
-  return 0;
-}
-
 export default function TopEarners() {
   const navigate = useNavigate();
   const [timePeriod, setTimePeriod] = useState('DAY');
@@ -42,12 +32,7 @@ export default function TopEarners() {
   }, [timePeriod, orderBy]);
 
   const windowLabel = TIME_TABS.find(t => t.value === timePeriod)?.label || '';
-  const windowDescription = {
-    DAY: 'Rankings based on the last 24 hours',
-    WEEK: 'Rankings based on the last 7 days',
-    MONTH: 'Rankings based on the last 30 days',
-    ALL: 'Rankings since Polymarket launched (cumulative all-time data)',
-  }[timePeriod] || '';
+  const windowDescription = { DAY: 'Rankings based on the last 24 hours', WEEK: 'Rankings based on the last 7 days', MONTH: 'Rankings based on the last 30 days', ALL: 'Rankings since Polymarket launched (cumulative all-time data)' }[timePeriod] || '';
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -61,17 +46,18 @@ export default function TopEarners() {
       {loading ? <TableSkeleton rows={10}/> :
        data.length === 0 ? <EmptyState icon={Trophy} title="No data available" description="Leaderboard data could not be loaded."/> : (
         <div className="glass-card overflow-hidden">
-          <div className="grid grid-cols-[40px_1fr_110px_90px_100px_36px] gap-3 px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-white/[0.06]">
-            <span>#</span><span>Trader</span><span className="text-right">P&L</span><span className="text-right">Trades</span><span className="text-right">Volume</span><span></span>
+          <div className="grid grid-cols-[40px_1fr_120px_120px_36px] gap-3 px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-white/[0.06]">
+            <span>#</span><span>Trader</span><span className="text-right">Profit / Loss</span><span className="text-right">Volume</span><span></span>
           </div>
           {data.map((u, i) => {
             const addr = u.proxyWallet || '';
             const name = u.userName || shortenAddress(addr);
-            const tradeCount = getTradeCount(u);
-            const badges = generateBadges({ rank: i + 1, category: 'Overall', timePeriod, pnl: u.pnl, vol: u.vol, trades: tradeCount });
+            const pnl = Number(u.pnl || 0);
+            const vol = Number(u.vol || 0);
+            const badges = generateBadges({ rank: i + 1, category: 'Overall', timePeriod, pnl, vol });
             return (
               <div key={addr || i} onClick={() => addr && navigate(`/wallet/${addr}`)}
-                className="grid grid-cols-[40px_1fr_110px_90px_100px_36px] gap-3 px-4 py-3.5 border-b border-white/[0.03] last:border-0 hover:bg-white/[0.03] cursor-pointer transition-all items-center">
+                className="grid grid-cols-[40px_1fr_120px_120px_36px] gap-3 px-4 py-3.5 border-b border-white/[0.03] last:border-0 hover:bg-white/[0.03] cursor-pointer transition-all items-center">
                 <span className={`inline-flex items-center justify-center w-7 h-7 rounded-md text-xs font-bold ${
                   i === 0 ? 'bg-gradient-to-br from-amber-400 to-yellow-300 text-black' : i === 1 ? 'bg-gradient-to-br from-slate-300 to-slate-200 text-black' : i === 2 ? 'bg-gradient-to-br from-amber-700 to-amber-500 text-white' : 'bg-surface-4 text-slate-500'
                 }`}>{u.rank || i + 1}</span>
@@ -87,16 +73,11 @@ export default function TopEarners() {
                   {badges.length > 0 && <div className="mt-1.5 ml-11"><BadgeList badges={badges} size="sm" /></div>}
                 </div>
                 <div className="text-right">
-                  <span className={`text-sm font-mono font-semibold ${Number(u.pnl) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                    {Number(u.pnl) >= 0 ? '+' : ''}{formatUSD(u.pnl)}
+                  <span className={`text-sm font-mono font-semibold ${pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {pnl >= 0 ? '+' : ''}{formatUSD(pnl)}
                   </span>
                 </div>
-                <div className="text-right">
-                  <span className="text-sm font-mono text-brand-300 font-semibold">
-                    {tradeCount > 0 ? tradeCount.toLocaleString() : '—'}
-                  </span>
-                </div>
-                <div className="text-right"><span className="text-sm font-mono text-slate-400">{formatUSD(u.vol)}</span></div>
+                <div className="text-right"><span className="text-sm font-mono text-slate-400">{formatUSD(vol)}</span></div>
                 <div className="flex justify-end"><FavoriteButton address={addr} name={u.userName} size={14}/></div>
               </div>
             );
