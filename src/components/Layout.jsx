@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useApp } from '../utils/store';
+import { useAuth } from '../utils/auth';
 import {
   LayoutDashboard, TrendingUp, Crosshair, Zap, Trophy,
-  Bookmark, Bell, X, ExternalLink, Menu, Award, Sparkles
+  Bookmark, Bell, X, ExternalLink, Menu, Award, Sparkles, LogOut, User
 } from 'lucide-react';
 import NotificationPanel from './NotificationPanel';
 
@@ -20,8 +21,10 @@ const NAV_ITEMS = [
 
 export default function Layout() {
   const { unreadCount } = useApp();
+  const { user, logout, signInWithGoogle } = useAuth();
   const [showNotifs, setShowNotifs] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -73,8 +76,54 @@ export default function Layout() {
             ))}
           </nav>
 
-          {/* RIGHT — Bell, Polymarket */}
-          <div className="flex items-center gap-2 w-40 flex-shrink-0 justify-end">
+          {/* RIGHT — User, Bell, Polymarket */}
+          <div className="flex items-center gap-2 w-auto flex-shrink-0 justify-end">
+            {/* User avatar or Sign in */}
+            {user ? (
+              <div className="relative">
+                <button
+                  onClick={() => setShowUserMenu(!showUserMenu)}
+                  className="flex items-center gap-2 p-1 pr-2 rounded-lg hover:bg-white/[0.06] transition-all"
+                >
+                  {user.photoURL ? (
+                    <img src={user.photoURL} alt="" className="w-7 h-7 rounded-full object-cover" referrerPolicy="no-referrer" />
+                  ) : (
+                    <div className="w-7 h-7 rounded-full bg-brand-600 flex items-center justify-center">
+                      <User size={14} className="text-white" />
+                    </div>
+                  )}
+                  <span className="text-xs text-slate-300 font-medium hidden sm:inline max-w-[80px] truncate">
+                    {user.displayName?.split(' ')[0] || 'Account'}
+                  </span>
+                </button>
+
+                {showUserMenu && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} />
+                    <div className="absolute right-0 top-full mt-1 z-50 w-56 bg-surface-2 border border-white/[0.08] rounded-lg shadow-xl py-1 animate-slide-up">
+                      <div className="px-3 py-2 border-b border-white/[0.06]">
+                        <p className="text-xs font-semibold text-white truncate">{user.displayName || 'User'}</p>
+                        <p className="text-[10px] text-slate-500 truncate">{user.email}</p>
+                      </div>
+                      <button
+                        onClick={() => { logout(); setShowUserMenu(false); }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-400 hover:text-red-400 hover:bg-white/[0.04] transition-all"
+                      >
+                        <LogOut size={13} /> Sign out
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : (
+              <button
+                onClick={signInWithGoogle}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold bg-brand-600/20 text-brand-300 border border-brand-500/30 hover:bg-brand-600/30 hover:text-brand-200 transition-all"
+              >
+                <User size={13} /> Sign in
+              </button>
+            )}
+
             {/* Bell */}
             <button
               onClick={() => setShowNotifs(!showNotifs)}

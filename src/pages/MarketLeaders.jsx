@@ -15,9 +15,9 @@ const CATEGORIES = [
 ];
 
 const TIME_TABS = [
-  { value: 'DAY', label: 'Today' },
-  { value: 'WEEK', label: 'This Week' },
-  { value: 'MONTH', label: 'This Month' },
+  { value: 'DAY', label: 'Daily' },
+  { value: 'WEEK', label: 'Weekly' },
+  { value: 'MONTH', label: 'Monthly' },
   { value: 'ALL', label: 'All Time' },
 ];
 

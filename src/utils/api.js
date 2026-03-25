@@ -58,6 +58,65 @@ export async function fetchEvents(opts = {}) {
   return apiFetch(`${GAMMA_API}/events?${p}`);
 }
 
+// Fetch events for trending — only passes order and limit, no active/closed filter
+export async function fetchTrendingEvents({ limit = 100, order = 'volume24hr', ascending = false } = {}) {
+  const p = new URLSearchParams({ limit, order, ascending });
+  return apiFetch(`${GAMMA_API}/events?${p}`);
+}
+
+// ============================================
+// TRENDING MARKETS
+// ============================================
+
+// Gamma API's volume24hr/volume1wk/volume1mo fields are stale and unreliable for ranking.
+// Accurate trending rankings require computing rolling volume from periodic snapshots.
+// We fetch pre-computed rankings via /api/rankings/ proxy, then hydrate with Gamma for rich UI.
+
+export async function fetchTrendingMarkets({ limit = 50, timeframe = 'daily' } = {}) {
+  // Step 1: Fetch pre-computed rankings with accurate volume data
+  let ranked;
+  try {
+    ranked = await apiFetch(`/api/rankings/hot?limit=${limit}&timeframe=${timeframe}`);
+  } catch (err) {
+    console.error('[Trending] Failed to fetch rankings:', err);
+    return [];
+  }
+
+  if (!Array.isArray(ranked) || ranked.length === 0) return [];
+
+  // Step 2: Collect unique slugs for Gamma hydration
+  const slugs = [...new Set(ranked.map(m => m.slug).filter(Boolean))];
+  const gammaEvents = {};
+
+  // Step 3: Batch-fetch event details from Gamma (images, outcomes, sub-markets)
+  for (let i = 0; i < slugs.length; i += 20) {
+    const batch = slugs.slice(i, i + 20);
+    const params = new URLSearchParams();
+    batch.forEach(s => params.append('slug', s));
+    try {
+      const events = await apiFetch(`${GAMMA_API}/events?${params}`);
+      if (Array.isArray(events)) events.forEach(e => { if (e.slug) gammaEvents[e.slug] = e; });
+    } catch {}
+  }
+
+  // Step 4: Merge — ranking order + volume from rankings, rich data from Gamma
+  return ranked.map((item, idx) => {
+    const evt = gammaEvents[item.slug];
+    return {
+      id: evt?.id || item.id || item.slug,
+      title: evt?.title || item.question || item.slug,
+      slug: item.slug || '',
+      image: evt?.image || evt?.icon || '',
+      markets: evt?.markets || [],
+      active: item.active ?? evt?.active ?? true,
+      closed: evt?.closed ?? false,
+      liquidity: Number(evt?.liquidity || 0),
+      trendingVolume: Number(item.volume || 0),
+      rank: idx + 1,
+    };
+  });
+}
+
 export async function searchGamma(query) {
   return apiFetch(`${GAMMA_API}/events?limit=20&active=true&closed=false&title=${encodeURIComponent(query)}`);
 }
@@ -137,6 +196,28 @@ export async function fetchGlobalTrades({ limit = 100, minUSD = 0 } = {}) {
     p.set('filterAmount', String(minUSD));
   }
   return apiFetch(`${DATA_API}/trades?${p}`);
+}
+
+// Fetch multiple pages of global trades for volume calculation
+export async function fetchTradesForVolume({ pages = 3, perPage = 200 } = {}) {
+  const requests = [];
+  for (let i = 0; i < pages; i++) {
+    requests.push(
+      apiFetch(`${DATA_API}/trades?${new URLSearchParams({ limit: perPage, offset: i * perPage })}`)
+    );
+  }
+  const results = await Promise.allSettled(requests);
+  const allTrades = [];
+  results.forEach(r => {
+    if (r.status === 'fulfilled' && Array.isArray(r.value)) allTrades.push(...r.value);
+  });
+  return allTrades;
+}
+
+// Fetch event details by slug from Gamma
+export async function fetchEventBySlug(slug) {
+  const data = await apiFetch(`${GAMMA_API}/events?slug=${encodeURIComponent(slug)}`);
+  return Array.isArray(data) ? data[0] : data;
 }
 
 // Category-specific leaderboard

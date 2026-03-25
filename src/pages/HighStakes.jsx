@@ -6,19 +6,20 @@ import { generateBadges, BadgeList } from '../utils/badges';
 import { Zap, ArrowUpRight, ExternalLink, RefreshCw, Filter, User } from 'lucide-react';
 
 const MIN_STAKE_OPTIONS = [
-  { value: 0, label: 'All' },
-  { value: 100, label: '$100+' },
-  { value: 500, label: '$500+' },
   { value: 1000, label: '$1K+' },
   { value: 5000, label: '$5K+' },
   { value: 10000, label: '$10K+' },
+  { value: 25000, label: '$25K+' },
+  { value: 50000, label: '$50K+' },
+  { value: 100000, label: '$100K+' },
+  { value: 200000, label: '$200K+' },
 ];
 
 export default function HighStakes() {
   const navigate = useNavigate();
   const [trades, setTrades] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [minStake, setMinStake] = useState(100);
+  const [minStake, setMinStake] = useState(1000);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [traderStats, setTraderStats] = useState({});
   const intervalRef = useRef(null);
@@ -89,7 +90,7 @@ export default function HighStakes() {
             const addr = t.proxyWallet || '';
             const name = t.name || t.pseudonym || shortenAddress(addr);
             const marketTitle = t.title || 'Unknown market';
-            const tier = amount >= 10000 ? 'mega' : amount >= 5000 ? 'high' : amount >= 1000 ? 'mid' : 'normal';
+            const tier = amount >= 100000 ? 'mega' : amount >= 50000 ? 'high' : amount >= 10000 ? 'mid' : 'normal';
             const outcome = t.outcome || 'Yes';
             const cardBorder = { mega: 'border-l-4 border-l-red-500', high: 'border-l-4 border-l-amber-500', mid: 'border-l-4 border-l-brand-500', normal: 'border-l-4 border-l-surface-4' }[tier];
             const amountColor = { mega: 'text-red-400', high: 'text-amber-400', mid: 'text-brand-300', normal: 'text-white' }[tier];

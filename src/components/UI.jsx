@@ -1,6 +1,7 @@
 import React from 'react';
 import { Star, ExternalLink, Copy, Check } from 'lucide-react';
 import { useApp } from '../utils/store';
+import { useAuth } from '../utils/auth';
 
 // Loading skeleton
 export function Skeleton({ className = '' }) {
@@ -62,19 +63,24 @@ export function StatCard({ label, value, change, icon: Icon, color = 'brand' }) 
 // Favorite star button
 export function FavoriteButton({ address, name, pseudonym, size = 18 }) {
   const { isFavorite, addFavorite, removeFavorite } = useApp();
+  const { requireAuth } = useAuth();
   const fav = isFavorite(address);
 
   return (
     <button
       onClick={(e) => {
         e.stopPropagation();
-        if (fav) removeFavorite(address);
-        else addFavorite({ address, name, pseudonym });
+        if (fav) {
+          removeFavorite(address);
+        } else {
+          if (!requireAuth()) return; // Shows sign-in modal if not logged in
+          addFavorite({ address, name, pseudonym });
+        }
       }}
       className={`p-1.5 rounded-lg transition-all ${
         fav ? 'text-amber-400 bg-amber-500/15' : 'text-slate-600 hover:text-amber-400 hover:bg-amber-500/10'
       }`}
-      title={fav ? 'Remove from favorites' : 'Add to favorites'}
+      title={fav ? 'Remove from favorites' : 'Sign in to add to favorites'}
     >
       <Star size={size} fill={fav ? 'currentColor' : 'none'} />
     </button>
