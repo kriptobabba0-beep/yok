@@ -137,6 +137,14 @@ export default function Layout() {
               )}
             </button>
 
+            {/* X / Twitter */}
+            <a href="https://x.com/polyuserstats" target="_blank" rel="noopener noreferrer"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-white/[0.06] text-slate-300 border border-white/[0.08] hover:bg-white/[0.12] hover:text-white transition-all"
+              title="Follow us on X">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+              Follow
+            </a>
+
             {/* Polymarket */}
             <a href="https://polymarket.com" target="_blank" rel="noopener noreferrer"
               className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 hover:text-emerald-300 transition-all">
@@ -186,7 +194,7 @@ export default function Layout() {
           <div className="flex items-center gap-4">
             <Link to="/privacy" className="text-xs text-slate-500 hover:text-slate-300 transition-colors">Privacy Policy</Link>
             <Link to="/terms" className="text-xs text-slate-500 hover:text-slate-300 transition-colors">Terms of Service</Link>
-            <a href="mailto:contact@polyuserstats.com" className="text-xs text-slate-500 hover:text-slate-300 transition-colors">Contact</a>
+            <a href="mailto:contact@polyuserstats.com" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.04] border border-white/[0.08] text-slate-400 hover:text-white hover:bg-white/[0.08] transition-all">📧 contact@polyuserstats.com</a>
           </div>
         </div>
       </footer>
