@@ -12,6 +12,8 @@ import TrendingMarkets from './pages/TrendingMarkets';
 import NewMarkets from './pages/NewMarkets';
 import WalletTracker from './pages/WalletTracker';
 import MarketLeaders from './pages/MarketLeaders';
+import Privacy from './pages/Privacy';
+import Terms from './pages/Terms';
 
 export default function App() {
   return (
@@ -29,6 +31,8 @@ export default function App() {
             <Route path="/new-markets" element={<NewMarkets />} />
             <Route path="/tracker" element={<WalletTracker />} />
             <Route path="/leaders" element={<MarketLeaders />} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/terms" element={<Terms />} />
           </Route>
         </Routes>
       </AppProvider>
