@@ -28,7 +28,9 @@ export default function HighStakes() {
   const loadTrades = useCallback(async (showLoading = false) => {
     if (showLoading) setLoading(true);
     try {
-      const data = await fetchGlobalTrades({ limit: 100, minUSD: minStake > 0 ? minStake : 0 });
+      // Fetch more trades for higher filters since fewer will match
+      const fetchLimit = minStake >= 100000 ? 500 : minStake >= 50000 ? 300 : minStake >= 10000 ? 200 : 100;
+      const data = await fetchGlobalTrades({ limit: fetchLimit, minUSD: minStake > 0 ? minStake : 0 });
       const arr = Array.isArray(data) ? data : [];
       setTrades(arr.filter(t => t.side === 'BUY'));
     } catch (err) { console.error(err); }
