@@ -17,7 +17,7 @@ export default function Dashboard() {
     let mounted = true;
     async function load() {
       const [evts, lb] = await Promise.allSettled([
-        fetchTrendingMarkets({ limit: 8, timeframe: 'daily' }),
+        fetchTrendingMarkets({ limit: 8, timeframe: 'all' }),
         fetchLeaderboard({ timePeriod: 'DAY', orderBy: 'PNL', limit: 10 }),
       ]);
       if (!mounted) return;

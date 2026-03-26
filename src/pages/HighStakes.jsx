@@ -28,11 +28,17 @@ export default function HighStakes() {
   const loadTrades = useCallback(async (showLoading = false) => {
     if (showLoading) setLoading(true);
     try {
-      // Fetch more trades for higher filters since fewer will match
-      const fetchLimit = minStake >= 100000 ? 500 : minStake >= 50000 ? 300 : minStake >= 10000 ? 200 : 100;
-      const data = await fetchGlobalTrades({ limit: fetchLimit, minUSD: minStake > 0 ? minStake : 0 });
+      // The API's filterAmount doesn't work reliably for high values.
+      // Fetch a large batch with a moderate API filter, then filter client-side.
+      const apiFilter = Math.min(minStake, 10000); // API filter capped at $10K
+      const data = await fetchGlobalTrades({ limit: 500, minUSD: apiFilter });
       const arr = Array.isArray(data) ? data : [];
-      setTrades(arr.filter(t => t.side === 'BUY'));
+      // Client-side filter: calculate actual USD amount and filter by minStake
+      setTrades(arr.filter(t => {
+        if (t.side !== 'BUY') return false;
+        const amount = Number(t.usdcSize || 0) || (Number(t.size || 0) * Number(t.price || 0));
+        return amount >= minStake;
+      }));
     } catch (err) { console.error(err); }
     setLoading(false);
   }, [minStake]);
