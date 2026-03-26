@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell } from 'recharts';
-import { fetchTrendingMarkets, fetchLeaderboard, formatUSD, shortenAddress, polymarketMarketUrl } from '../utils/api';
+import { fetchEvents, fetchLeaderboard, formatUSD, shortenAddress, polymarketMarketUrl } from '../utils/api';
 import { StatCard, CardSkeleton, PageHeader } from '../components/UI';
 import { generateBadges, BadgeList } from '../utils/badges';
 import { TrendingUp, DollarSign, BarChart3, Zap, Trophy, ArrowRight, ExternalLink, LayoutDashboard, ArrowUpRight } from 'lucide-react';
@@ -17,7 +17,7 @@ export default function Dashboard() {
     let mounted = true;
     async function load() {
       const [evts, lb] = await Promise.allSettled([
-        fetchTrendingMarkets({ limit: 8, timeframe: 'all' }),
+        fetchEvents({ limit: 8, order: 'volume24hr', ascending: false, active: true, closed: false }),
         fetchLeaderboard({ timePeriod: 'DAY', orderBy: 'PNL', limit: 10 }),
       ]);
       if (!mounted) return;
@@ -28,7 +28,7 @@ export default function Dashboard() {
       setEvents(evtData);
       setLeaders(lbData);
 
-      const totalVol = evtData.reduce((sum, e) => sum + Number(e.trendingVolume || 0), 0);
+      const totalVol = evtData.reduce((sum, e) => sum + Number(e.volume24hr || 0), 0);
       const topProfit = lbData[0]?.pnl || 0;
       setStats({ totalVol, topProfit });
       setLoading(false);
@@ -94,7 +94,7 @@ export default function Dashboard() {
                             <h3 className="text-sm font-bold text-white leading-snug line-clamp-2">{evt.title || m.question || 'Untitled'}</h3>
                             <div className="flex items-center gap-2 mt-1.5">
                               <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-[10px]">
-                                <TrendingUp size={10} className="text-emerald-400"/><span className="font-bold text-emerald-400">Vol:</span><span className="font-mono font-bold text-emerald-300">{formatUSD(evt.trendingVolume || evt.volume24hr || m.volume24hr)}</span>
+                                <TrendingUp size={10} className="text-emerald-400"/><span className="font-bold text-emerald-400">Vol:</span><span className="font-mono font-bold text-emerald-300">{formatUSD(evt.volume24hr || m.volume24hr)}</span>
                               </span>
                               <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-cyan-500/10 border border-cyan-500/20 text-[10px]">
                                 <span className="font-bold text-cyan-400">Liq:</span><span className="font-mono font-bold text-cyan-300">{formatUSD(evt.liquidity || m.liquidity)}</span>
