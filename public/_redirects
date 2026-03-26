@@ -1,0 +1,5 @@
+/api/gamma/* https://gamma-api.polymarket.com/:splat 200
+/api/data/* https://data-api.polymarket.com/:splat 200
+/api/clob/* https://clob.polymarket.com/:splat 200
+/api/rankings/* https://api.polyinsider.io/api/markets/:splat 200
+/* /index.html 200
