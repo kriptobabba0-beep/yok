@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { Outlet, NavLink, Link, useNavigate } from 'react-router-dom';
 import { useApp } from '../utils/store';
 import { useAuth } from '../utils/auth';
 import {
@@ -178,6 +178,18 @@ export default function Layout() {
       <main className="flex-1 p-4 lg:p-6 max-w-7xl w-full mx-auto">
         <Outlet />
       </main>
+
+      {/* Footer */}
+      <footer className="border-t border-white/[0.06] mt-8">
+        <div className="max-w-7xl mx-auto px-4 lg:px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <p className="text-xs text-slate-600">&copy; {new Date().getFullYear()} Polyuserstats. Not affiliated with Polymarket.</p>
+          <div className="flex items-center gap-4">
+            <Link to="/privacy" className="text-xs text-slate-500 hover:text-slate-300 transition-colors">Privacy Policy</Link>
+            <Link to="/terms" className="text-xs text-slate-500 hover:text-slate-300 transition-colors">Terms of Service</Link>
+            <a href="mailto:contact@polyuserstats.com" className="text-xs text-slate-500 hover:text-slate-300 transition-colors">Contact</a>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
