@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { fetchProfile, fetchPositions, fetchClosedPositions, fetchActivity, fetchTrades, formatUSD, shortenAddress, polymarketProfileUrl, polymarketMarketUrl, timeAgo } from '../utils/api';
+import { fetchProfile, fetchPositions, fetchAllPositions, fetchClosedPositions, fetchActivity, formatUSD, shortenAddress, polymarketProfileUrl, polymarketMarketUrl, timeAgo } from '../utils/api';
 import { PageHeader, TabBar, TableSkeleton, FavoriteButton, CopyButton, ExtLink, EmptyState, ProbBar, StatCard, CardSkeleton } from '../components/UI';
 import { generateBadges, BadgeList } from '../utils/badges';
-import { Wallet, ArrowUpRight, ArrowDownLeft, ExternalLink, Activity, BarChart3, FileText, DollarSign } from 'lucide-react';
+import { Wallet, ArrowUpRight, ArrowDownLeft, ExternalLink, Activity, BarChart3, CheckCircle, XCircle, DollarSign } from 'lucide-react';
 
 const TABS = [
   { value: 'positions', label: 'Open Positions' },
-  { value: 'trades', label: 'Trade History' },
+  { value: 'closed', label: 'Closed Positions' },
   { value: 'activity', label: 'All Activity' },
 ];
 
@@ -15,7 +15,7 @@ export default function WalletDetail() {
   const { address } = useParams();
   const [profile, setProfile] = useState(null);
   const [positions, setPositions] = useState([]);
-  const [trades, setTrades] = useState([]);
+  const [closedPositions, setClosedPositions] = useState([]);
   const [activity, setActivity] = useState([]);
   const [tab, setTab] = useState('positions');
   const [loading, setLoading] = useState(true);
@@ -31,21 +31,26 @@ export default function WalletDetail() {
     Promise.allSettled([
       fetchProfile(address),
       fetchPositions(address),
+      fetchAllPositions(address),
       fetchClosedPositions(address),
       fetchActivity(address, { limit: 100 }),
-    ]).then(([p, pos, closed, act]) => {
+    ]).then(([p, pos, allPos, closed, act]) => {
         if (!m) return;
         setProfile(p.status === 'fulfilled' ? p.value : null);
         const posArr = pos.status === 'fulfilled' && Array.isArray(pos.value) ? pos.value : [];
         setPositions(posArr);
 
-        // Closed positions: sum realized P&L and collect conditionIds to avoid double-counting
+        // Use ALL positions (sizeThreshold=0) for P&L accuracy
+        const allPosArr = allPos.status === 'fulfilled' && Array.isArray(allPos.value) ? allPos.value : [];
+
+        // Closed positions: store for display + sum realized P&L
         const closedArr = closed.status === 'fulfilled' && Array.isArray(closed.value) ? closed.value : [];
+        setClosedPositions(closedArr);
         const closedConditionIds = new Set(closedArr.map(p => p.conditionId).filter(Boolean));
         const realizedPnl = closedArr.reduce((s, p) => s + Number(p.realizedPnl || 0), 0);
 
-        // Unrealized P&L: only from open positions NOT in closed-positions
-        const unrealizedPnl = posArr.reduce((s, p) => {
+        // Unrealized P&L: from ALL positions (sizeThreshold=0) NOT in closed-positions
+        const unrealizedPnl = allPosArr.reduce((s, p) => {
           if (closedConditionIds.has(p.conditionId)) return s; // skip — already counted in closed
           const currentVal = Number(p.currentValue || 0);
           const cost = Number(p.size || 0) * Number(p.avgPrice || 0);
@@ -66,12 +71,12 @@ export default function WalletDetail() {
   }, [address]);
 
   useEffect(() => {
-    if (tab === 'positions') return;
+    if (tab !== 'activity') return;
     let m = true;
     setTabLoading(true);
-    const p = tab === 'trades' ? fetchTrades({ user: address, limit: 100 }) : fetchActivity(address, { limit: 100 });
-    p.then(d => { if (!m) return; if (tab === 'trades') setTrades(Array.isArray(d) ? d : []); else setActivity(Array.isArray(d) ? d : []); setTabLoading(false); })
-     .catch(() => m && setTabLoading(false));
+    fetchActivity(address, { limit: 100 })
+      .then(d => { if (!m) return; setActivity(Array.isArray(d) ? d : []); setTabLoading(false); })
+      .catch(() => m && setTabLoading(false));
     return () => { m = false; };
   }, [tab, address]);
 
@@ -155,25 +160,44 @@ export default function WalletDetail() {
         })}</div>
       )}
 
-      {/* Trades */}
-      {tab === 'trades' && (tabLoading ? <TableSkeleton rows={5}/> :
-        trades.length === 0 ? <EmptyState icon={FileText} title="No trades found" description="No trade history for this wallet."/> :
-        <div className="glass-card overflow-hidden">
-          <div className="grid grid-cols-12 gap-3 px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider border-b border-white/[0.06]">
-            <div className="col-span-1">Side</div><div className="col-span-4">Market</div><div className="col-span-2">Outcome</div><div className="col-span-2 text-right">Amount</div><div className="col-span-1 text-right">Price</div><div className="col-span-2 text-right">Time</div>
-          </div>
-          {trades.slice(0, 100).map((t, i) => (
-            <div key={i} className="grid grid-cols-12 gap-3 px-4 py-3 border-b border-white/[0.03] last:border-0 hover:bg-white/[0.02] text-sm items-center">
-              <div className="col-span-1"><span className={`inline-flex items-center gap-1 text-xs font-medium ${t.side === 'BUY' ? 'text-emerald-400' : 'text-red-400'}`}>
-                {t.side === 'BUY' ? <ArrowUpRight size={12}/> : <ArrowDownLeft size={12}/>}{t.side}</span></div>
-              <div className="col-span-4 truncate text-slate-300 text-xs">{t.eventSlug ? <a href={polymarketMarketUrl(t.eventSlug)} target="_blank" rel="noopener noreferrer" className="hover:text-brand-400">{t.title || 'Unknown'}</a> : t.title || 'Unknown'}</div>
-              <div className="col-span-2"><span className={`badge text-[10px] ${t.outcome === 'Yes' ? 'badge-green' : 'badge-red'}`}>{t.outcome || '—'}</span></div>
-              <div className="col-span-2 text-right font-mono text-slate-300">{formatUSD(Number(t.size || 0) * Number(t.price || 0))}</div>
-              <div className="col-span-1 text-right font-mono text-slate-400">{Number(t.price || 0).toFixed(2)}</div>
-              <div className="col-span-2 text-right text-xs text-slate-500">{t.timestamp ? timeAgo(t.timestamp) : '—'}</div>
+      {/* Closed Positions */}
+      {tab === 'closed' && (loading ? <TableSkeleton rows={5}/> :
+        closedPositions.length === 0 ? <EmptyState icon={CheckCircle} title="No closed positions" description="This wallet has no resolved positions."/> :
+        <div className="space-y-2">{closedPositions.map((pos, i) => {
+          const totalTraded = Number(pos.totalBought || 0);
+          const realizedPnl = Number(pos.realizedPnl || 0);
+          const won = realizedPnl > 0;
+          const pctReturn = totalTraded > 0 ? ((realizedPnl / totalTraded) * 100).toFixed(2) : '0.00';
+          return (
+            <div key={i} className="glass-card-hover p-4">
+              <div className="flex items-start gap-3">
+                {pos.icon && <img src={pos.icon} alt="" className="w-10 h-10 rounded-md object-cover flex-shrink-0 bg-surface-4"/>}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className={`inline-flex items-center gap-1 text-xs font-bold ${won ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {won ? <CheckCircle size={12}/> : <XCircle size={12}/>}
+                      {won ? 'Won' : 'Lost'}
+                    </span>
+                  </div>
+                  <h3 className="text-sm font-medium text-slate-200 line-clamp-2 mt-1">{pos.title || 'Unknown'}</h3>
+                  <div className="flex flex-wrap items-center gap-3 mt-2 text-xs">
+                    <span className={`badge ${pos.outcome === 'Yes' ? 'badge-green' : 'badge-red'}`}>{pos.outcome || '—'}</span>
+                    <span className="text-slate-500">Avg: {Number(pos.avgPrice || 0).toFixed(2)}</span>
+                  </div>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <p className="text-xs text-slate-500">Total Traded</p>
+                  <p className="text-sm font-mono text-slate-300">{formatUSD(totalTraded)}</p>
+                  <p className={`text-sm font-mono font-bold mt-1 ${won ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {won ? '+' : ''}{formatUSD(realizedPnl)}
+                    <span className="text-xs font-normal ml-1">({pctReturn}%)</span>
+                  </p>
+                </div>
+              </div>
+              {pos.eventSlug && <div className="mt-2 flex justify-end"><a href={polymarketMarketUrl(pos.eventSlug)} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-400 hover:text-brand-300 flex items-center gap-1">View on Polymarket <ExternalLink size={10}/></a></div>}
             </div>
-          ))}
-        </div>
+          );
+        })}</div>
       )}
 
       {/* Activity */}

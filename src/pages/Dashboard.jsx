@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell } from 'recharts';
-import { fetchEvents, fetchLeaderboard, formatUSD, shortenAddress, polymarketMarketUrl } from '../utils/api';
+import { fetchTrendingEvents, fetchLeaderboard, formatUSD, shortenAddress, polymarketMarketUrl } from '../utils/api';
 import { StatCard, CardSkeleton, PageHeader } from '../components/UI';
 import { generateBadges, BadgeList } from '../utils/badges';
 import { TrendingUp, DollarSign, BarChart3, Zap, Trophy, ArrowRight, ExternalLink, LayoutDashboard, ArrowUpRight } from 'lucide-react';
@@ -17,14 +17,14 @@ export default function Dashboard() {
     let mounted = true;
     async function load() {
       const [evts, lb] = await Promise.allSettled([
-        fetchEvents({ limit: 8, order: 'volume24hr', ascending: false, active: true, closed: false }),
+        fetchTrendingEvents({ limit: 8, order: 'volume24hr', ascending: false }),
         fetchLeaderboard({ timePeriod: 'DAY', orderBy: 'PNL', limit: 10 }),
       ]);
       if (!mounted) return;
 
       const evtData = evts.status === 'fulfilled' && Array.isArray(evts.value) ? evts.value : [];
       const lbData = lb.status === 'fulfilled' && Array.isArray(lb.value) ? lb.value : [];
-      
+
       setEvents(evtData);
       setLeaders(lbData);
 

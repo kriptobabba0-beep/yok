@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../utils/store';
 import { useAuth } from '../utils/auth';
-import { fetchProfile, fetchPositions, fetchClosedPositions, formatUSD, shortenAddress, polymarketProfileUrl, timeAgo } from '../utils/api';
+import { fetchProfile, fetchAllPositions, fetchClosedPositions, formatUSD, shortenAddress, polymarketProfileUrl, timeAgo } from '../utils/api';
 import { PageHeader, EmptyState, CopyButton, StatCard } from '../components/UI';
 import { generateBadges, BadgeList } from '../utils/badges';
 import { Bookmark, Plus, ExternalLink, Wallet, Eye, ArrowRight, Bell, Users, ArrowUpRight, ArrowDownLeft, CheckCheck, Trash2, Star, TrendingUp, Activity, LogIn } from 'lucide-react';
@@ -21,7 +21,7 @@ export default function WalletTracker() {
     favorites.forEach(fav => {
       if (walletData[fav.address]) return;
       setLoadingWallets(prev => ({ ...prev, [fav.address]: true }));
-      Promise.allSettled([fetchProfile(fav.address), fetchPositions(fav.address), fetchClosedPositions(fav.address)])
+      Promise.allSettled([fetchProfile(fav.address), fetchAllPositions(fav.address), fetchClosedPositions(fav.address)])
         .then(([prof, pos, closed]) => {
           const profile = prof.status === 'fulfilled' ? prof.value : null;
           const posArr = pos.status === 'fulfilled' && Array.isArray(pos.value) ? pos.value : [];

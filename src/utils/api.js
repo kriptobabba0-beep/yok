@@ -58,63 +58,68 @@ export async function fetchEvents(opts = {}) {
   return apiFetch(`${GAMMA_API}/events?${p}`);
 }
 
-// Fetch events for trending — only passes order and limit, no active/closed filter
-export async function fetchTrendingEvents({ limit = 100, order = 'volume24hr', ascending = false } = {}) {
-  const p = new URLSearchParams({ limit, order, ascending });
-  return apiFetch(`${GAMMA_API}/events?${p}`);
+// Fetch trending events from /events/pagination — matches Polymarket's trending sort
+export async function fetchTrendingEvents({ limit = 20, order = 'volume24hr', ascending = false } = {}) {
+  const p = new URLSearchParams({ limit, order, ascending, active: true, archived: false, closed: false, offset: 0 });
+  const raw = await apiFetch(`${GAMMA_API}/events/pagination?${p}`);
+  return raw?.data || (Array.isArray(raw) ? raw : []);
 }
 
 // ============================================
 // TRENDING MARKETS
 // ============================================
 
-// Gamma API's volume24hr/volume1wk/volume1mo fields are stale and unreliable for ranking.
-// Accurate trending rankings require computing rolling volume from periodic snapshots.
-// We fetch pre-computed rankings via /api/rankings/ proxy, then hydrate with Gamma for rich UI.
+// Matches Polymarket's "All markets" page exactly.
+// For Daily/Weekly/Monthly: Polymarket fetches two lists (recurrence + tag_id) and merges them.
+// For All: single fetch with no recurrence/tag filter.
+// All sorted by volume24hr descending.
+const PERIOD_TAG_ID = { daily: '102281', weekly: '102264', monthly: '102144' };
 
 export async function fetchTrendingMarkets({ limit = 50, timeframe = 'daily' } = {}) {
-  // Step 1: Fetch pre-computed rankings with accurate volume data
-  let ranked;
-  try {
-    ranked = await apiFetch(`/api/rankings/hot?limit=${limit}&timeframe=${timeframe}`);
-  } catch (err) {
-    console.error('[Trending] Failed to fetch rankings:', err);
-    return [];
+  const base = { limit: 100, active: true, archived: false, closed: false, order: 'volume24hr', ascending: false };
+
+  if (timeframe === 'all') {
+    const p = new URLSearchParams({ ...base, order: 'volume', offset: 0 });
+    const raw = await apiFetch(`${GAMMA_API}/events/pagination?${p}`);
+    const events = raw?.data || (Array.isArray(raw) ? raw : []);
+    return mapEvents(Array.isArray(events) ? events : [], 'volume');
   }
 
-  if (!Array.isArray(ranked) || ranked.length === 0) return [];
+  // Fetch both recurrence list and tag list in parallel, then merge & deduplicate
+  const pRec = new URLSearchParams({ ...base, recurrence: timeframe });
+  const pTag = new URLSearchParams({ ...base, tag_id: PERIOD_TAG_ID[timeframe] });
+  const [rawRec, rawTag] = await Promise.all([
+    apiFetch(`${GAMMA_API}/events/pagination?${pRec}`),
+    apiFetch(`${GAMMA_API}/events/pagination?${pTag}`),
+  ]);
+  const eventsRec = rawRec?.data || (Array.isArray(rawRec) ? rawRec : []);
+  const eventsTag = rawTag?.data || (Array.isArray(rawTag) ? rawTag : []);
 
-  // Step 2: Collect unique slugs for Gamma hydration
-  const slugs = [...new Set(ranked.map(m => m.slug).filter(Boolean))];
-  const gammaEvents = {};
-
-  // Step 3: Batch-fetch event details from Gamma (images, outcomes, sub-markets)
-  for (let i = 0; i < slugs.length; i += 20) {
-    const batch = slugs.slice(i, i + 20);
-    const params = new URLSearchParams();
-    batch.forEach(s => params.append('slug', s));
-    try {
-      const events = await apiFetch(`${GAMMA_API}/events?${params}`);
-      if (Array.isArray(events)) events.forEach(e => { if (e.slug) gammaEvents[e.slug] = e; });
-    } catch {}
+  // Deduplicate by event ID and sort by volume24hr descending
+  const seen = new Set();
+  const merged = [];
+  for (const evt of [...eventsRec, ...eventsTag]) {
+    if (!evt?.id || seen.has(String(evt.id))) continue;
+    seen.add(String(evt.id));
+    merged.push(evt);
   }
+  merged.sort((a, b) => Number(b.volume24hr || 0) - Number(a.volume24hr || 0));
+  return mapEvents(merged.slice(0, limit));
+}
 
-  // Step 4: Merge — ranking order + volume from rankings, rich data from Gamma
-  return ranked.map((item, idx) => {
-    const evt = gammaEvents[item.slug];
-    return {
-      id: evt?.id || item.id || item.slug,
-      title: evt?.title || item.question || item.slug,
-      slug: item.slug || '',
-      image: evt?.image || evt?.icon || '',
-      markets: evt?.markets || [],
-      active: item.active ?? evt?.active ?? true,
-      closed: evt?.closed ?? false,
-      liquidity: Number(evt?.liquidity || 0),
-      trendingVolume: Number(item.volume || 0),
-      rank: idx + 1,
-    };
-  });
+function mapEvents(events, volField = 'volume24hr') {
+  return events.map((evt, idx) => ({
+    id: evt.id,
+    title: evt.title || 'Untitled',
+    slug: evt.slug || '',
+    image: evt.image || evt.icon || '',
+    markets: evt.markets || [],
+    active: evt.active ?? true,
+    closed: evt.closed ?? false,
+    liquidity: Number(evt.liquidity || 0),
+    trendingVolume: Number(evt[volField] || 0),
+    rank: idx + 1,
+  }));
 }
 
 export async function searchGamma(query) {
@@ -162,9 +167,31 @@ export async function fetchProfile(address) {
 
 // -- Positions --
 // Official: GET /positions?user={address}
-// Paginated with sizeThreshold=0 to capture all positions including small ones
+// Two modes: display (sizeThreshold=1, sorted by value) and P&L (sizeThreshold=0, all positions)
+
+// For display: matches Polymarket's "Active" positions view (sorted by value, skips dust)
 export async function fetchPositions(address) {
-  const PAGE_SIZE = 500; // API max
+  const PAGE_SIZE = 500;
+  let all = [];
+  let offset = 0;
+
+  while (true) {
+    const batch = await apiFetch(
+      `${DATA_API}/positions?user=${address}&limit=${PAGE_SIZE}&sizeThreshold=1&sortBy=CURRENT&sortDirection=DESC&offset=${offset}`
+    );
+    if (!Array.isArray(batch) || batch.length === 0) break;
+    all = all.concat(batch);
+    if (batch.length < PAGE_SIZE) break;
+    offset += PAGE_SIZE;
+    if (offset > 10000) { console.warn(`fetchPositions: safety cap hit for ${address}, results may be incomplete`); break; }
+  }
+
+  return all;
+}
+
+// For P&L calculation: sizeThreshold=0 to include all positions for accurate totals
+export async function fetchAllPositions(address) {
+  const PAGE_SIZE = 500;
   let all = [];
   let offset = 0;
 
@@ -176,7 +203,7 @@ export async function fetchPositions(address) {
     all = all.concat(batch);
     if (batch.length < PAGE_SIZE) break;
     offset += PAGE_SIZE;
-    if (offset > 10000) { console.warn(`fetchPositions: safety cap hit for ${address}, results may be incomplete`); break; }
+    if (offset > 10000) { console.warn(`fetchAllPositions: safety cap hit for ${address}, results may be incomplete`); break; }
   }
 
   return all;
