@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../utils/store';
 import { useAuth } from '../utils/auth';
-import { fetchProfile, fetchPositions, formatUSD, shortenAddress, polymarketProfileUrl, timeAgo } from '../utils/api';
+import { fetchProfile, fetchPositions, fetchClosedPositions, formatUSD, shortenAddress, polymarketProfileUrl, timeAgo } from '../utils/api';
 import { PageHeader, EmptyState, CopyButton, StatCard } from '../components/UI';
 import { generateBadges, BadgeList } from '../utils/badges';
 import { Bookmark, Plus, ExternalLink, Wallet, Eye, ArrowRight, Bell, Users, ArrowUpRight, ArrowDownLeft, CheckCheck, Trash2, Star, TrendingUp, Activity, LogIn } from 'lucide-react';
@@ -21,17 +21,31 @@ export default function WalletTracker() {
     favorites.forEach(fav => {
       if (walletData[fav.address]) return;
       setLoadingWallets(prev => ({ ...prev, [fav.address]: true }));
-      Promise.allSettled([fetchProfile(fav.address), fetchPositions(fav.address)])
-        .then(([prof, pos]) => {
+      Promise.allSettled([fetchProfile(fav.address), fetchPositions(fav.address), fetchClosedPositions(fav.address)])
+        .then(([prof, pos, closed]) => {
           const profile = prof.status === 'fulfilled' ? prof.value : null;
           const posArr = pos.status === 'fulfilled' && Array.isArray(pos.value) ? pos.value : [];
+          const closedArr = closed.status === 'fulfilled' && Array.isArray(closed.value) ? closed.value : [];
+
+          // Closed: realized P&L + conditionId set
+          const closedConditionIds = new Set(closedArr.map(p => p.conditionId).filter(Boolean));
+          const realizedPnl = closedArr.reduce((s, p) => s + Number(p.realizedPnl || 0), 0);
+
+          // Unrealized: only from positions NOT in closed-positions
+          const unrealizedPnl = posArr.reduce((s, p) => {
+            if (closedConditionIds.has(p.conditionId)) return s;
+            const currentVal = Number(p.currentValue || 0);
+            const cost = Number(p.size || 0) * Number(p.avgPrice || 0);
+            return s + (currentVal - cost);
+          }, 0);
+
           setWalletData(prev => ({
             ...prev,
             [fav.address]: {
               profile,
               positionCount: posArr.length,
               totalValue: posArr.reduce((s, p) => s + Number(p.currentValue || 0), 0),
-              totalPnl: posArr.reduce((s, p) => s + Number(p.cashPnl || 0), 0),
+              totalPnl: realizedPnl + unrealizedPnl,
             }
           }));
           setLoadingWallets(prev => { const n = { ...prev }; delete n[fav.address]; return n; });

@@ -162,8 +162,47 @@ export async function fetchProfile(address) {
 
 // -- Positions --
 // Official: GET /positions?user={address}
+// Paginated with sizeThreshold=0 to capture all positions including small ones
 export async function fetchPositions(address) {
-  return apiFetch(`${DATA_API}/positions?user=${address}`);
+  const PAGE_SIZE = 500; // API max
+  let all = [];
+  let offset = 0;
+
+  while (true) {
+    const batch = await apiFetch(
+      `${DATA_API}/positions?user=${address}&limit=${PAGE_SIZE}&sizeThreshold=0&offset=${offset}`
+    );
+    if (!Array.isArray(batch) || batch.length === 0) break;
+    all = all.concat(batch);
+    if (batch.length < PAGE_SIZE) break;
+    offset += PAGE_SIZE;
+    if (offset > 10000) { console.warn(`fetchPositions: safety cap hit for ${address}, results may be incomplete`); break; }
+  }
+
+  return all;
+}
+
+// -- Closed Positions --
+// Official: GET /closed-positions?user={address}
+// Returns resolved positions with realizedPnl (wins/losses that have settled)
+// API max limit is 50, so we must paginate to get all closed positions
+export async function fetchClosedPositions(address) {
+  const PAGE_SIZE = 50; // API max
+  let all = [];
+  let offset = 0;
+
+  while (true) {
+    const batch = await apiFetch(
+      `${DATA_API}/closed-positions?user=${address}&limit=${PAGE_SIZE}&offset=${offset}`
+    );
+    if (!Array.isArray(batch) || batch.length === 0) break;
+    all = all.concat(batch);
+    if (batch.length < PAGE_SIZE) break;
+    offset += PAGE_SIZE;
+    if (offset > 5000) { console.warn(`fetchClosedPositions: safety cap hit for ${address}, results may be incomplete`); break; }
+  }
+
+  return all;
 }
 
 // -- Activity --
@@ -254,9 +293,11 @@ export function getTokenIds(market) {
 export function formatUSD(v) {
   const n = Number(v);
   if (isNaN(n)) return '$0.00';
-  if (Math.abs(n) >= 1e6) return `$${(n / 1e6).toFixed(2)}M`;
-  if (Math.abs(n) >= 1e3) return `$${(n / 1e3).toFixed(1)}K`;
-  return `$${n.toFixed(2)}`;
+  const sign = n < 0 ? '-' : '';
+  const abs = Math.abs(n);
+  if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(2)}M`;
+  if (abs >= 1e3) return `${sign}$${(abs / 1e3).toFixed(1)}K`;
+  return `${sign}$${abs.toFixed(2)}`;
 }
 
 export function shortenAddress(a) {

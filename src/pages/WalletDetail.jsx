@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { fetchProfile, fetchPositions, fetchActivity, fetchTrades, formatUSD, shortenAddress, polymarketProfileUrl, polymarketMarketUrl, timeAgo } from '../utils/api';
+import { fetchProfile, fetchPositions, fetchClosedPositions, fetchActivity, fetchTrades, formatUSD, shortenAddress, polymarketProfileUrl, polymarketMarketUrl, timeAgo } from '../utils/api';
 import { PageHeader, TabBar, TableSkeleton, FavoriteButton, CopyButton, ExtLink, EmptyState, ProbBar, StatCard, CardSkeleton } from '../components/UI';
 import { generateBadges, BadgeList } from '../utils/badges';
 import { Wallet, ArrowUpRight, ArrowDownLeft, ExternalLink, Activity, BarChart3, FileText, DollarSign } from 'lucide-react';
@@ -23,14 +23,37 @@ export default function WalletDetail() {
 
   const [activityStats, setActivityStats] = useState(null);
 
+  const [closedPnl, setClosedPnl] = useState({ total: 0, unrealized: 0 });
+
   useEffect(() => {
     let m = true;
     setLoading(true);
-    Promise.allSettled([fetchProfile(address), fetchPositions(address), fetchActivity(address, { limit: 100 })])
-      .then(([p, pos, act]) => {
+    Promise.allSettled([
+      fetchProfile(address),
+      fetchPositions(address),
+      fetchClosedPositions(address),
+      fetchActivity(address, { limit: 100 }),
+    ]).then(([p, pos, closed, act]) => {
         if (!m) return;
         setProfile(p.status === 'fulfilled' ? p.value : null);
-        setPositions(pos.status === 'fulfilled' && Array.isArray(pos.value) ? pos.value : []);
+        const posArr = pos.status === 'fulfilled' && Array.isArray(pos.value) ? pos.value : [];
+        setPositions(posArr);
+
+        // Closed positions: sum realized P&L and collect conditionIds to avoid double-counting
+        const closedArr = closed.status === 'fulfilled' && Array.isArray(closed.value) ? closed.value : [];
+        const closedConditionIds = new Set(closedArr.map(p => p.conditionId).filter(Boolean));
+        const realizedPnl = closedArr.reduce((s, p) => s + Number(p.realizedPnl || 0), 0);
+
+        // Unrealized P&L: only from open positions NOT in closed-positions
+        const unrealizedPnl = posArr.reduce((s, p) => {
+          if (closedConditionIds.has(p.conditionId)) return s; // skip — already counted in closed
+          const currentVal = Number(p.currentValue || 0);
+          const cost = Number(p.size || 0) * Number(p.avgPrice || 0);
+          return s + (currentVal - cost);
+        }, 0);
+
+        setClosedPnl({ total: realizedPnl, unrealized: unrealizedPnl });
+
         // Compute activity stats for badges
         const acts = act.status === 'fulfilled' && Array.isArray(act.value) ? act.value : [];
         const tradeLike = acts.filter(a => a.side && a.title);
@@ -54,7 +77,9 @@ export default function WalletDetail() {
 
   const displayName = profile?.name || profile?.pseudonym || profile?.userName || shortenAddress(address);
   const totalValue = positions.reduce((s, p) => s + Number(p.currentValue || 0), 0);
-  const totalPnl = positions.reduce((s, p) => s + Number(p.cashPnl || 0), 0);
+  // Total P&L = realized gains from closed positions + unrealized P&L from open-only positions
+  // Exclude positions that appear in closed-positions to prevent double-counting
+  const totalPnl = closedPnl.total + closedPnl.unrealized;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -77,7 +102,7 @@ export default function WalletDetail() {
       {!loading && <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard label="Open Positions" value={positions.length} icon={BarChart3} color="brand"/>
         <StatCard label="Portfolio Value" value={formatUSD(totalValue)} icon={DollarSign} color="cyan"/>
-        <StatCard label="Unrealized P&L" value={formatUSD(totalPnl)} icon={Activity} color={totalPnl >= 0 ? 'green' : 'red'}/>
+        <StatCard label="Total P&L" value={formatUSD(totalPnl)} icon={Activity} color={totalPnl >= 0 ? 'green' : 'red'}/>
       </div>}
 
       {/* Badges */}
@@ -103,7 +128,9 @@ export default function WalletDetail() {
       {tab === 'positions' && (loading ? <TableSkeleton rows={5}/> :
         positions.length === 0 ? <EmptyState icon={BarChart3} title="No open positions" description="This wallet has no active positions."/> :
         <div className="space-y-2">{positions.map((pos, i) => {
-          const pnl = Number(pos.cashPnl || 0);
+          const currentVal = Number(pos.currentValue || 0);
+          const cost = Number(pos.size || 0) * Number(pos.avgPrice || 0);
+          const pnl = currentVal - cost;
           return (
             <div key={i} className="glass-card-hover p-4">
               <div className="flex items-start gap-3">
