@@ -165,7 +165,7 @@ export default function Dashboard() {
           <div className="mt-4 space-y-2">
             <Link to="/high-stakes" className="glass-card-hover p-4 flex items-center gap-3 group">
               <div className="p-2 rounded-md bg-gradient-to-br from-red-500/20 to-red-500/5"><Zap size={16} className="text-red-400"/></div>
-              <div className="flex-1"><p className="text-sm font-medium text-slate-200">Hot Trades Live</p><p className="text-xs text-slate-500">Watch big bets in real time</p></div>
+              <div className="flex-1"><p className="text-sm font-medium text-slate-200">Hot Trades Live</p><p className="text-xs text-slate-500">Watch big trades in real time</p></div>
               <ArrowRight size={14} className="text-slate-600 group-hover:text-slate-400 transition-colors"/>
             </Link>
             <Link to="/new-markets" className="glass-card-hover p-4 flex items-center gap-3 group">

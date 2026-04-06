@@ -80,7 +80,7 @@ export default function HighStakes() {
       </PageHeader>
 
       <div className="flex items-center gap-2 flex-wrap">
-        <Filter size={14} className="text-slate-500"/><span className="text-xs text-slate-500 mr-1">Min stake:</span>
+        <Filter size={14} className="text-slate-500"/><span className="text-xs text-slate-500 mr-1">Min size:</span>
         {MIN_STAKE_OPTIONS.map(opt => (
           <button key={opt.value} onClick={() => setMinStake(opt.value)}
             className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
@@ -121,7 +121,7 @@ export default function HighStakes() {
                   <div className="flex-shrink-0 text-right">
                     <span className={`text-3xl font-mono font-bold ${amountColor}`}>{formatUSD(amount)}</span>
                     {tier === 'mega' && <div className="mt-1"><span className="text-[11px] font-bold uppercase tracking-widest text-red-400 bg-red-500/10 px-2.5 py-1 rounded-md border border-red-500/20">WHALE</span></div>}
-                    {tier === 'high' && <div className="mt-1"><span className="text-[11px] font-bold uppercase tracking-widest text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-md border border-amber-500/20">HIGH STAKE</span></div>}
+                    {tier === 'high' && <div className="mt-1"><span className="text-[11px] font-bold uppercase tracking-widest text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-md border border-amber-500/20">HIGH VALUE</span></div>}
                   </div>
                 </div>
 
@@ -133,9 +133,9 @@ export default function HighStakes() {
                   <p className="text-lg text-slate-100 leading-relaxed">
                     <span onClick={e => { e.stopPropagation(); addr && navigate(`/wallet/${addr}`); }}
                       className="font-bold text-brand-300 hover:text-brand-200 cursor-pointer transition-colors">{name}</span>
-                    {' '}placed a{' '}
+                    {' '}opened a{' '}
                     <span className="font-bold text-white">{formatUSD(amount)}</span>
-                    {' '}bet on{' '}
+                    {' '}position on{' '}
                     <span className={`font-bold px-2.5 py-1 rounded-md ${
                       outcome === 'Yes' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/20' :
                       outcome === 'No' ? 'bg-red-500/15 text-red-300 border border-red-500/20' :

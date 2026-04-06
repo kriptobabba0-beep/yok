@@ -3,7 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import { fetchGlobalTrades, fetchActivity, formatUSD, shortenAddress, polymarketProfileUrl, polymarketMarketUrl, timeAgo } from '../utils/api';
 import { PageHeader, TableSkeleton, FavoriteButton, EmptyState } from '../components/UI';
 import { generateBadges, BadgeList } from '../utils/badges';
-import { Crosshair, AlertTriangle, ExternalLink, RefreshCw, Shield, Zap, ArrowUpRight, ArrowDownLeft, Loader } from 'lucide-react';
+import { Crosshair, AlertTriangle, ExternalLink, RefreshCw, Shield, Zap, ArrowUpRight, ArrowDownLeft, Loader, Filter } from 'lucide-react';
+
+const MIN_SIZE_OPTIONS = [
+  { value: 0, label: 'All' },
+  { value: 1000, label: '$1K' },
+  { value: 5000, label: '$5K' },
+  { value: 10000, label: '$10K' },
+  { value: 25000, label: '$25K' },
+  { value: 50000, label: '$50K+' },
+];
 
 export default function Snipers() {
   const navigate = useNavigate();
@@ -11,6 +20,7 @@ export default function Snipers() {
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
   const [progress, setProgress] = useState('');
+  const [minSize, setMinSize] = useState(0);
   const mountedRef = useRef(true);
 
   useEffect(() => {
@@ -26,17 +36,19 @@ export default function Snipers() {
     setProgress('Fetching recent trades…');
 
     try {
-      // 1) Fetch recent trades at two price levels
-      const [highTrades, medTrades] = await Promise.all([
-        fetchGlobalTrades({ limit: 100, minUSD: 200 }),
-        fetchGlobalTrades({ limit: 100, minUSD: 50 }),
+      // 1) Fetch a large sample of recent trades at multiple price levels
+      const [t1, t2, t3] = await Promise.all([
+        fetchGlobalTrades({ limit: 500, minUSD: 100 }),
+        fetchGlobalTrades({ limit: 500, minUSD: 25 }),
+        fetchGlobalTrades({ limit: 200, minUSD: 500 }),
       ]);
 
       if (!mountedRef.current) return;
 
       const allTrades = [
-        ...(Array.isArray(highTrades) ? highTrades : []),
-        ...(Array.isArray(medTrades) ? medTrades : []),
+        ...(Array.isArray(t1) ? t1 : []),
+        ...(Array.isArray(t2) ? t2 : []),
+        ...(Array.isArray(t3) ? t3 : []),
       ];
 
       if (allTrades.length === 0) {
@@ -77,16 +89,16 @@ export default function Snipers() {
 
       // 3) Select candidates — skip wallets with many trades in our batch (clearly active)
       const candidates = Object.values(walletMap)
-        .filter(w => w.trades.length <= 10)
+        .filter(w => w.trades.length <= 20 && w.totalStaked >= 25)
         .sort((a, b) => b.totalStaked - a.totalStaked)
-        .slice(0, 30);
+        .slice(0, 60);
 
       if (!mountedRef.current) return;
       setProgress(`Checking ${candidates.length} wallets…`);
 
       // 4) Check activity counts in parallel batches
-      const BATCH = 6;
-      const ACTIVITY_LIMIT = 30;
+      const BATCH = 8;
+      const ACTIVITY_LIMIT = 100;
       const found = [];
 
       for (let b = 0; b < candidates.length; b += BATCH) {
@@ -106,7 +118,7 @@ export default function Snipers() {
           const hist = (res.status === 'fulfilled' && Array.isArray(res.value)) ? res.value : [];
           const count = hist.length;
 
-          if (count < ACTIVITY_LIMIT && wallet.totalStaked >= 50) {
+          if (count < ACTIVITY_LIMIT && wallet.totalStaked >= 25) {
             const marketCount = Object.keys(wallet.marketTitles).length;
             const activityFactor = Math.max(0, (ACTIVITY_LIMIT - count) / ACTIVITY_LIMIT) * 40;
             const stakeFactor = Math.min(40, (wallet.totalStaked / 2000) * 40);
@@ -149,7 +161,7 @@ export default function Snipers() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <PageHeader title="Snipers" subtitle="New or low-activity wallets placing high-stakes bets — possible insider signals"
+      <PageHeader title="Snipers" subtitle="New or low-activity wallets opening high-value positions — possible insider signals"
         icon={Crosshair}
         badge={<span className="badge bg-amber-500/15 text-amber-400 border border-amber-500/20 flex items-center gap-1"><AlertTriangle size={10}/> Intel</span>}
       >
@@ -165,13 +177,24 @@ export default function Snipers() {
           <div>
             <h3 className="text-sm font-medium text-slate-200">How Sniper Detection Works</h3>
             <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-              Polyuserstats scans recent trades and checks each wallet's total on-chain activity. Wallets with fewer than 30
-              total transactions that are placing meaningful bets get flagged. A higher risk score means the wallet is newer,
-              the stake is larger, and the bets are focused on fewer markets.
+              Polyuserstats scans over 1,000 recent trades and checks each wallet's total on-chain activity. Wallets with fewer than 100
+              total transactions that are opening meaningful positions get flagged. A higher risk score means the wallet is newer,
+              the position size is larger, and the positions are focused on fewer markets.
               <strong className="text-amber-400/80"> This is algorithmic analysis, not a guarantee of insider trading.</strong>
             </p>
           </div>
         </div>
+      </div>
+
+      {/* Min size filter */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <Filter size={14} className="text-slate-500"/><span className="text-xs text-slate-500 mr-1">Min size:</span>
+        {MIN_SIZE_OPTIONS.map(opt => (
+          <button key={opt.value} onClick={() => setMinSize(opt.value)}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+              minSize === opt.value ? 'bg-brand-600/20 text-brand-300 border border-brand-500/20' : 'bg-surface-3 text-slate-500 hover:text-slate-300 border border-white/[0.04]'
+            }`}>{opt.label}</button>
+        ))}
       </div>
 
       {/* Progress indicator */}
@@ -189,10 +212,14 @@ export default function Snipers() {
         <EmptyState icon={Crosshair} title="No snipers detected" description="No suspicious new-wallet patterns found. Check back later or click Rescan."/>
       )}
 
-      {!scanning && !loading && snipers.length > 0 && (
+      {!scanning && !loading && snipers.length > 0 && (() => {
+        const filtered = minSize > 0 ? snipers.filter(s => s.totalStaked >= minSize) : snipers;
+        return filtered.length === 0 ? (
+          <EmptyState icon={Crosshair} title="No results" description={`No wallets found above ${formatUSD(minSize)}. Try a lower filter.`}/>
+        ) : (
         <div className="space-y-3">
-          <p className="text-xs text-slate-500">{snipers.length} suspicious wallet{snipers.length !== 1 ? 's' : ''} found</p>
-          {snipers.map((s, i) => {
+          <p className="text-xs text-slate-500">{filtered.length} suspicious wallet{filtered.length !== 1 ? 's' : ''} found{minSize > 0 ? ` (filtered from ${snipers.length})` : ''}</p>
+          {filtered.map((s, i) => {
             const riskColor = s.riskScore >= 70 ? 'red' : s.riskScore >= 40 ? 'amber' : 'brand';
             const riskBg = { red: 'bg-red-500/10 border-red-500/20', amber: 'bg-amber-500/10 border-amber-500/20', brand: 'bg-brand-500/10 border-brand-500/20' }[riskColor];
 
@@ -210,7 +237,7 @@ export default function Snipers() {
                     <div className="flex items-center gap-4 mt-1.5 text-sm text-slate-500">
                       <span>{s.activityCount} total txns</span>
                       <span>{s.marketCount} market{s.marketCount !== 1 ? 's' : ''}</span>
-                      <span className="font-semibold text-white">{formatUSD(s.totalStaked)} staked</span>
+                      <span className="font-semibold text-white">{formatUSD(s.totalStaked)} traded</span>
                     </div>
                     {(() => { const b = generateBadges({ vol: s.totalStaked, trades: s.activityCount, marketCount: s.marketCount }); return b.length > 0 ? <div className="mt-2"><BadgeList badges={b} size="sm"/></div> : null; })()}
                   </div>
@@ -263,7 +290,8 @@ export default function Snipers() {
             );
           })}
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
