@@ -73,8 +73,8 @@ export function generateBadges({ rank, category, timePeriod, pnl, vol, trades, w
   if (tradeNum >= 10 && tradeNum < 50 && pnlNum > 0) badges.push({ text: 'Rising Star', tip: 'New trader showing early profit', bg: 'bg-yellow-500/15', fg: 'text-yellow-400', border: 'border-yellow-500/20', icon: Rocket, p: 48 });
 
   // SIZE-BASED
-  if (volNum >= 50000 && !tradeNum) badges.push({ text: 'Big Bet', tip: 'Placed a bet worth $50K+', bg: 'bg-amber-500/15', fg: 'text-amber-400', border: 'border-amber-500/20', icon: Zap, p: 50 });
-  if (volNum >= 10000 && volNum < 50000 && !tradeNum) badges.push({ text: 'High Roller', tip: 'Placed a bet worth $10K+', bg: 'bg-surface-4', fg: 'text-amber-300', border: 'border-white/8', p: 38 });
+  if (volNum >= 50000 && !tradeNum) badges.push({ text: 'Big Trade', tip: 'Opened a position worth $50K+', bg: 'bg-amber-500/15', fg: 'text-amber-400', border: 'border-amber-500/20', icon: Zap, p: 50 });
+  if (volNum >= 10000 && volNum < 50000 && !tradeNum) badges.push({ text: 'High Roller', tip: 'Opened a position worth $10K+', bg: 'bg-surface-4', fg: 'text-amber-300', border: 'border-white/8', p: 38 });
 
   badges.sort((a, b) => b.p - a.p);
   return badges;
